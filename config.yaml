@@ -1,0 +1,11 @@
+BACKPACK_AUTH:
+  DEFAULT_WINDOW: 5000
+
+BACKPACK_API_URL: https://api.backpack.exchange/
+BACKPACK_WS_URL: wss://ws.backpack.exchange/
+
+HYPERLIQUID_API_URL: https://api.hyperliquid.xyz
+
+HYPERLIQUID_ADDRESS: 0x0000000000000000000000000000000000000000
+
+LOG_FILE_PATH: logs/dex_funding_rate_arbitrage.log

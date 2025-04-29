@@ -1,0 +1,311 @@
+import base64
+import time
+from typing import Dict, Optional, Any, List, Callable
+import urllib.parse
+import requests
+import nacl.signing
+from utils.config import CONFIG
+import logging
+from model.exchanges.base import BaseExchange
+
+logger = logging.getLogger(__name__)
+
+class BackpackExchange(BaseExchange):
+    def __init__(self):
+        proxy_url = CONFIG.get('PROXY_URL')
+        self.proxies = {
+            "http": proxy_url
+        } if proxy_url else None
+    
+    def sign_request(self, instruction_type: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+        """Sign a request for Backpack API."""
+        private_key_b64 = CONFIG.get("BACKPACK_PRIVATE_KEY")
+        private_key = base64.b64decode(private_key_b64)
+        signing_key = nacl.signing.SigningKey(private_key)
+        
+        # Set parameters for signing
+        timestamp = int(time.time() * 1000)
+        message = f"instruction={instruction_type}"
+        
+        # Add sorted parameters if provided
+        if params:
+            sorted_params = sorted(params.items(), key=lambda x: x[0])
+            
+            # Convert values to strings, ensuring booleans are lowercase "true"/"false"
+            encoded_params = []
+            for k, v in sorted_params:
+                if isinstance(v, bool):
+                    # Convert boolean to lowercase string as expected by API signature
+                    encoded_params.append((k, str(v).lower())) 
+                else:
+                    # Ensure all other values are strings
+                    encoded_params.append((k, str(v)))
+            
+            params_str = urllib.parse.urlencode(encoded_params)
+            message += f"&{params_str}"
+        
+        window = CONFIG.get("BACKPACK_DEFAULT_WINDOW")
+        message += f"&timestamp={timestamp}&window={window}"
+        
+        # Log the exact message being signed for debugging
+        logger.debug(f"Message to sign: {message}")
+        
+        signature = signing_key.sign(message.encode())
+        
+        # Return headers
+        return {
+            "X-API-Key": CONFIG.get("BACKPACK_PUBLIC_KEY"),
+            "X-Signature": base64.b64encode(signature.signature).decode(),
+            "X-Timestamp": str(timestamp),
+            "X-Window": str(window)
+        }
+    
+    def get_funding_history(
+        self,
+        subaccount_id: Optional[int] = None,
+        symbol: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+        sort_direction: str = "Desc"
+    ) -> Dict:
+        """Get funding payment history for futures."""
+        # Prepare query parameters
+        params = {}
+        if subaccount_id is not None:
+            params["subaccountId"] = subaccount_id
+        if symbol:
+            params["symbol"] = symbol
+        if limit != 100:
+            params["limit"] = limit
+        if offset != 0:
+            params["offset"] = offset
+        if sort_direction != "Desc":
+            params["sortDirection"] = sort_direction
+        
+        # Sign the request
+        headers = self.sign_request("fundingHistoryQueryAll")
+        
+        # Make the request
+        url = f"{CONFIG.BACKPACK_API_URL_HISTORY_FUNDING}"
+        if params:
+            url += f"?{urllib.parse.urlencode(params)}"
+        
+        response = requests.get(url, headers=headers, proxies=self.proxies)
+        return response.json()
+    
+    def get_funding_rates(self) -> Dict:
+        """Get mark prices, index prices and funding rates."""
+        return self.get_mark_prices()
+    
+    def get_mark_prices(self, symbol: Optional[str] = None) -> Dict:
+        """Get mark prices, index prices and funding rates."""
+        url = f"{CONFIG.BACKPACK_API_URL_MARK_PRICES}"
+        
+        # Add symbol parameter if provided
+        if symbol:
+            url += f"?symbol={symbol}_USDC_PERP"
+        
+        try:
+            response = requests.get(url, proxies=self.proxies, timeout=10)  # Add 10 second timeout
+            logger.info(f"Mark prices response: {response.json()}")
+            
+            # Check response status and content before parsing JSON
+            if response.status_code != 200:
+                return {"error": f"API error: status code {response.status_code}", "response": response.text}
+            
+            if not response.text:
+                return {"error": "Empty response from API", "status_code": response.status_code}
+                
+            return response.json()
+        except requests.Timeout:
+            logger.error("Request to Backpack API timed out")
+            return {"error": "Request timed out"}
+        except requests.RequestException as e:
+            logger.error(f"Request to Backpack API failed: {str(e)}")
+            return {"error": f"Request failed: {str(e)}"}
+        except Exception as e:
+            logger.error(f"Unexpected error in get_mark_prices: {str(e)}")
+            return {"error": f"Unexpected error: {str(e)}"}
+    
+    def get_positions(self) -> List[Dict]:
+        """Get current positions."""
+        headers = self.sign_request("positionQuery")
+        url = f"{CONFIG.BACKPACK_API_URL_POSITION}"
+        
+        response = requests.get(url, headers=headers, proxies=self.proxies)
+        
+        # Check response status and content before parsing JSON
+        if response.status_code != 200:
+            return {"error": f"API error: status code {response.status_code}", "response": response.text}
+        
+        if not response.text:
+            return {"error": "Empty response from API", "status_code": response.status_code}
+            
+        try:
+            return response.json()
+        except Exception as e:
+            return {"error": f"Failed to parse JSON response: {str(e)}", "response": response.text}
+    
+    def place_market_order(
+        self,
+        symbol: str,
+        side: str,
+        quantity: Optional[float] = None,
+        quote_quantity: Optional[float] = None,
+        reduce_only: bool = False,
+        client_id: Optional[int] = None
+    ) -> Dict:
+        """Place a market order."""
+        if not quantity and not quote_quantity:
+            raise ValueError("Either quantity or quote_quantity must be provided")
+        
+        # Only add the suffix if it's not already there
+        if not symbol.endswith("_USDC_PERP"):
+            symbol = f"{symbol}_USDC_PERP"
+
+        # Prepare request body
+        payload = {
+            "symbol": symbol,
+            "side": side,
+            "orderType": "Market",
+            "reduceOnly": reduce_only
+        }
+        
+        # Add either quantity or quoteQuantity
+        if quantity:
+            payload["quantity"] = str(quantity)
+        if quote_quantity:
+            payload["quoteQuantity"] = str(quote_quantity)
+        
+        # Add client ID if provided
+        if client_id is not None:
+            payload["clientId"] = client_id
+            
+        # Sign the request
+        headers = self.sign_request("orderExecute", params=payload)
+        headers["Content-Type"] = "application/json"
+        
+        # Make the request
+        url = f"{CONFIG.BACKPACK_API_URL_ORDER}"
+        
+        response = requests.post(url, headers=headers, json=payload, proxies=self.proxies)
+        
+        # Check response status and content before parsing JSON
+        if response.status_code != 200:
+            return {"error": f"API error: status code {response.status_code}", "response": response.text}
+        
+        if not response.text:
+            return {"error": "Empty response from API", "status_code": response.status_code}
+            
+        try:
+            return response.json()
+        except Exception as e:
+            return {"error": f"Failed to parse JSON response: {str(e)}", "response": response.text}
+    
+    def close_position(
+        self,
+        symbol: str,
+        position_size: Optional[float] = None,
+        client_id: Optional[int] = None
+    ) -> Dict:
+        """Close an existing position."""
+        if position_size is None:
+            # Get positions to find the size
+            positions = self.get_positions()
+            for position in positions:
+                if position.get("symbol") == symbol:
+                    position_size = float(position.get("positionSize", "0"))
+                    break
+            
+            if position_size is None or position_size == 0:
+                return {"error": "No position found for symbol", "symbol": symbol}
+        
+        # Determine side based on position direction
+        side = "Ask" if position_size > 0 else "Bid"
+        
+        # Use absolute value for quantity
+        quantity = abs(position_size)
+        
+        return self.place_market_order(
+            symbol=symbol,
+            side=side,
+            quantity=quantity,
+            reduce_only=True,
+            client_id=client_id
+        )
+    
+    def close_all_positions(self) -> Dict[str, Any]:
+        """Close all open positions."""
+        positions = self.get_positions()
+        
+        results = {}
+        for position in positions:
+            symbol = position.get("symbol")
+            size = float(position.get("positionSize", "0"))
+            
+            # Skip if position size is 0
+            if size == 0:
+                continue
+                
+            # Close the position
+            result = self.close_position(symbol, size)
+            results[symbol] = result
+        
+        return results
+    
+    def format_symbol(self, asset: str) -> str:
+        """Format asset name to exchange-specific symbol format."""
+        return f"{asset}_USDC_PERP"
+    
+    def open_long(self, asset: str, amount_usd: float) -> Dict:
+        """Open a long position for the specified asset."""
+        symbol = self.format_symbol(asset)
+        return self.place_market_order(
+            symbol=symbol,
+            side="Bid",
+            quote_quantity=amount_usd
+        )
+    
+    def open_short(self, asset: str, amount_usd: float) -> Dict:
+        """Open a short position for the specified asset."""
+        symbol = self.format_symbol(asset)
+        return self.place_market_order(
+            symbol=symbol,
+            side="Ask",
+            quote_quantity=amount_usd
+        )
+    
+    def close_asset_position(self, asset: str) -> Optional[Dict]:
+        """Close position for a specific asset."""
+        symbol = self.format_symbol(asset)
+        
+        # Get positions
+        positions = self.get_positions()
+        for position in positions:
+            if position["symbol"] == symbol:
+                size = float(position.get("positionSize", "0"))
+                if size != 0:
+                    return self.close_position(symbol, size)
+        
+        return None
+        
+    def subscribe_to_funding_updates(self, callback: Callable) -> Any:
+        """Subscribe to funding rate updates using WebSocket."""
+        # This is a placeholder - actual implementation would use the WebSocket client
+        # In a real implementation, you would use the BackpackWebSocketClient
+        logger.warning("WebSocket subscription not implemented in REST client")
+        return None
+
+    def process_funding_rates(self, mark_prices: List[Dict]) -> Dict[str, Dict]:
+        """Convert Backpack mark prices to a normalized funding rate dict."""
+        result = {}
+        for item in mark_prices:
+            symbol = item.get("symbol", "").split("_")[0]  
+            result[symbol] = {
+                "rate": float(item.get("fundingRate", "0")),
+                "next_funding_time": item.get("nextFundingTimestamp", 0),
+                "exchange": "Backpack",
+                "mark_price": float(item.get("markPrice", "0")),
+                "index_price": float(item.get("indexPrice", "0"))
+            }
+        return result 
