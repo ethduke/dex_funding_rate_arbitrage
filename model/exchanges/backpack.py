@@ -7,15 +7,32 @@ import nacl.signing
 from utils.config import CONFIG
 from model.exchanges.base import BaseExchange
 from utils.logger import setup_logger
+from model.exchanges.backpack_ws import BackpackWebSocketClient
 
 logger = setup_logger(__name__)
 
 class BackpackExchange(BaseExchange):
-    def __init__(self):
+    def __init__(self, use_ws: bool = False):
         proxy_url = CONFIG.get('PROXY_URL')
         self.proxies = {
             "http": proxy_url
         } if proxy_url else None
+        
+        # Initialize WebSocket client if use_ws is True
+        self.use_ws = use_ws
+        self.ws_client = BackpackWebSocketClient() if use_ws else None
+    
+    async def initialize_ws(self):
+        """Initialize WebSocket connection if WS is enabled."""
+        if self.use_ws and self.ws_client:
+            await self.ws_client.connect()
+            return self.ws_client.is_connected()
+        return False
+        
+    async def close_ws(self):
+        """Close the WebSocket connection if it exists."""
+        if self.use_ws and self.ws_client:
+            await self.ws_client.disconnect()
     
     def sign_request(self, instruction_type: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
         """Sign a request for Backpack API."""
@@ -345,10 +362,23 @@ class BackpackExchange(BaseExchange):
         
     def subscribe_to_funding_updates(self, callback: Callable) -> Any:
         """Subscribe to funding rate updates using WebSocket."""
-        # This is a placeholder - actual implementation would use the WebSocket client
-        # In a real implementation, you would use the BackpackWebSocketClient
-        logger.warning("WebSocket subscription not implemented in REST client")
-        return None
+        if not self.use_ws or not self.ws_client:
+            logger.warning("WebSocket subscription requested but WebSocket is not enabled. Set use_ws=True when initializing.")
+            return None
+            
+        # Create an async subscription to the mark price stream
+        async def subscribe_async():
+            if not self.ws_client.is_connected():
+                logger.info("WebSocket not connected, connecting now...")
+                await self.ws_client.connect()
+                
+            # Subscribe to the mark price stream
+            stream_name = "markPrice" # Appropriate stream name for funding/mark price updates
+            await self.ws_client.subscribe(stream_name, callback)
+            return True
+            
+        # Return the coroutine for the caller to schedule
+        return subscribe_async()
 
     def process_funding_rates(self, mark_prices: List[Dict]) -> Dict[str, Dict]:
         """Convert Backpack mark prices to a normalized funding rate dict."""

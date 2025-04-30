@@ -1,4 +1,3 @@
-import logging
 import asyncio
 from model.exchanges.backpack_ws import BackpackWebSocketClient
 from utils.config import CONFIG
@@ -8,8 +7,6 @@ from utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 async def main():
-    # Set logging level to DEBUG
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     # Load credentials securely
     logger.debug("Loading credentials...")

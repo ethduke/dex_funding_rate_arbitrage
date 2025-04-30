@@ -8,7 +8,6 @@ from utils.logger import setup_logger
 from model.exchanges.base import BaseExchange
 from model.exchanges.backpack import BackpackExchange
 from model.exchanges.hyperliquid import HyperliquidExchange
-from model.exchanges.backpack_ws import BackpackWebSocketClient
 from utils.config import CONFIG
 
 logger = setup_logger(__name__)
@@ -23,7 +22,8 @@ class FundingArbitrageEngine:
                  min_hold_time_seconds: int,
                  magnitude_reduction_threshold: float,
                  check_interval_minutes: int,
-                 exchanges: Optional[List[Type[BaseExchange]]] = None):
+                 exchanges: Optional[List[Type[BaseExchange]]] = None,
+                 use_ws: bool = True):
         """Initialize the funding rate arbitrage engine."""
         logger.info("Initializing FundingArbitrageEngine...")
         self.position_size = position_size
@@ -31,6 +31,7 @@ class FundingArbitrageEngine:
         self.min_hold_time_seconds = min_hold_time_seconds
         self.magnitude_reduction_threshold = magnitude_reduction_threshold
         self.check_interval_minutes = check_interval_minutes
+        self.use_ws = use_ws
         
         self.active_positions = {}  # Track active arbitrage positions
         self.position_stats = {}  # Track position statistics
@@ -52,8 +53,13 @@ class FundingArbitrageEngine:
             exchange_name = exchange_class.__name__.replace('Exchange', '')
             logger.info(f"Initializing {exchange_name} exchange...")
             try:
-                self.exchanges[exchange_name] = exchange_class()
-                logger.info(f"Successfully initialized {exchange_name} exchange")
+                # Initialize Backpack with WebSocket support if enabled
+                if exchange_name == "Backpack":
+                    self.exchanges[exchange_name] = exchange_class(use_ws=self.use_ws)
+                    logger.info(f"Successfully initialized {exchange_name} exchange with WebSocket={self.use_ws}")
+                else:
+                    self.exchanges[exchange_name] = exchange_class()
+                    logger.info(f"Successfully initialized {exchange_name} exchange")
             except Exception as e:
                 logger.error(f"Error initializing {exchange_name} exchange: {str(e)}", exc_info=True)
         
@@ -69,6 +75,14 @@ class FundingArbitrageEngine:
         if not self.running:
             self.running = True
             self.stop_event.clear()
+            
+            # Initialize WebSocket connections if enabled
+            if self.use_ws:
+                backpack = self.exchanges.get("Backpack")
+                if backpack:
+                    logger.info("Initializing Backpack WebSocket connection...")
+                    connected = await backpack.initialize_ws()
+                    logger.info(f"Backpack WebSocket connected: {connected}")
             
             # Schedule initial check after a short delay
             logger.debug("Scheduling initial check after 5 seconds")
@@ -89,6 +103,13 @@ class FundingArbitrageEngine:
         if self.running:
             self.running = False
             self.stop_event.set()
+            
+            # Close WebSocket connections if enabled
+            if self.use_ws:
+                backpack = self.exchanges.get("Backpack")
+                if backpack:
+                    logger.info("Closing Backpack WebSocket connection...")
+                    await backpack.close_ws()
             
             # Cancel periodic check task if it exists
             if self.check_task:
@@ -657,9 +678,6 @@ class FundingArbitrageEngine:
         # Thread-safe queue for Hyperliquid callbacks
         hl_thread_queue = queue.Queue()
         
-        # Create Backpack websocket client
-        bp_client = BackpackWebSocketClient()
-        
         # Trade start time
         trade_start_time = time.time()
         
@@ -762,9 +780,18 @@ class FundingArbitrageEngine:
         tasks = []
         
         try:
-            # Connect Backpack websocket
-            await bp_client.connect()
-            await bp_client.subscribe(f"markPrice.{bp_symbol}", bp_rate_callback)
+            # Use integrated WebSocket if enabled
+            if self.use_ws and backpack.use_ws:
+                # Subscribe to the mark price stream using the integrated WebSocket
+                logger.info(f"Using integrated Backpack WebSocket for {bp_symbol}")
+                await backpack.ws_client.subscribe(f"markPrice.{bp_symbol}", bp_rate_callback)
+            else:
+                # For backwards compatibility - create a standalone WebSocket client
+                from model.exchanges.backpack_ws import BackpackWebSocketClient
+                # Create and connect to a new WebSocket
+                bp_client = BackpackWebSocketClient()
+                await bp_client.connect()
+                await bp_client.subscribe(f"markPrice.{bp_symbol}", bp_rate_callback)
             
             # Subscribe to Hyperliquid updates
             hyperliquid.subscribe_to_funding_updates(hl_rate_callback)
@@ -979,11 +1006,15 @@ class FundingArbitrageEngine:
                     except asyncio.CancelledError:
                         pass
             
-            # Disconnect websocket
-            try:
-                await bp_client.disconnect()
-            except:
-                pass
+            # Clean up standalone WebSocket if we created one
+            if not self.use_ws or not backpack.use_ws:
+                try:
+                    from model.exchanges.backpack_ws import BackpackWebSocketClient
+                    # Only try to disconnect if we have a standalone client
+                    if 'bp_client' in locals() and isinstance(bp_client, BackpackWebSocketClient):
+                        await bp_client.disconnect()
+                except:
+                    pass
     
     async def _poll_funding_rates(self, backpack, hyperliquid, asset, funding_rate_queue):
         """Periodically poll funding rates as a backup."""
