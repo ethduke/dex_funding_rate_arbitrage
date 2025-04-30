@@ -440,34 +440,7 @@ class FundingArbitrageEngine:
             
             # Check available balances on both exchanges first
             logger.info("Checking available balances on both exchanges...")
-            sufficient_balance = True
-            
-            # Check Hyperliquid margin
-            if hyperliquid is not None:
-                try:
-                    hl_margin = hyperliquid.get_available_margin()
-                    if hl_margin < position_size_usd:
-                        logger.error(f"Insufficient margin on Hyperliquid: ${hl_margin:.2f}, required: ${position_size_usd:.2f}")
-                        sufficient_balance = False
-                except Exception as e:
-                    logger.error(f"Error checking Hyperliquid margin: {e}")
-                    logger.warning("Continuing without margin check - this could fail if insufficient funds")
-            
-            # Check Backpack balance
-            if backpack is not None:
-                try:
-                    bp_balance = backpack.get_available_balance()
-                    if bp_balance < position_size_usd:
-                        logger.error(f"Insufficient balance on Backpack: ${bp_balance:.2f}, required: ${position_size_usd:.2f}")
-                        sufficient_balance = False
-                except Exception as e:
-                    logger.error(f"Error checking Backpack balance: {e}")
-                    logger.warning("Continuing without balance check - this could fail if insufficient funds")
-            
-            if not sufficient_balance:
-                logger.error("Cannot execute arbitrage due to insufficient balances")
-                return None
-            
+                        
             # Detail what we're going to do
             logger.info(f"TRADE PLAN: LONG on {long_exchange}, SHORT on {short_exchange} for {asset}")
             
