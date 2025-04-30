@@ -227,12 +227,9 @@ class FundingArbitrageEngine:
                         data = exchange.get_funding_rates()
                         logger.debug(f"Successfully got funding rates from {exchange_name}")
                         
-                        if exchange_name == "Backpack":
-                            logger.debug("Processing Backpack funding rates...")
-                            exchange_rates[exchange_name] = exchange.process_funding_rates(data)
-                        elif exchange_name == "Hyperliquid":
-                            logger.debug("Processing Hyperliquid funding rates...")
-                            exchange_rates[exchange_name] = exchange.process_funding_rates(data)
+                        # Process rates using exchange's method 
+                        # (all exchange classes must implement process_funding_rates)
+                        exchange_rates[exchange_name] = exchange.process_funding_rates(data)
                         
                         logger.debug(f"Processed {len(exchange_rates[exchange_name])} assets for {exchange_name}")
                     except Exception as e:
@@ -419,6 +416,36 @@ class FundingArbitrageEngine:
         try:
             backpack = self.exchanges.get("Backpack")
             hyperliquid = self.exchanges.get("Hyperliquid")
+            
+            # Check available balances on both exchanges first
+            logger.info("Checking available balances on both exchanges...")
+            sufficient_balance = True
+            
+            # Check Hyperliquid margin
+            if hyperliquid is not None:
+                try:
+                    hl_margin = hyperliquid.get_available_margin()
+                    if hl_margin < position_size_usd:
+                        logger.error(f"Insufficient margin on Hyperliquid: ${hl_margin:.2f}, required: ${position_size_usd:.2f}")
+                        sufficient_balance = False
+                except Exception as e:
+                    logger.error(f"Error checking Hyperliquid margin: {e}")
+                    logger.warning("Continuing without margin check - this could fail if insufficient funds")
+            
+            # Check Backpack balance
+            if backpack is not None:
+                try:
+                    bp_balance = backpack.get_available_balance()
+                    if bp_balance < position_size_usd:
+                        logger.error(f"Insufficient balance on Backpack: ${bp_balance:.2f}, required: ${position_size_usd:.2f}")
+                        sufficient_balance = False
+                except Exception as e:
+                    logger.error(f"Error checking Backpack balance: {e}")
+                    logger.warning("Continuing without balance check - this could fail if insufficient funds")
+            
+            if not sufficient_balance:
+                logger.error("Cannot execute arbitrage due to insufficient balances")
+                return None
             
             # Detail what we're going to do
             logger.info(f"TRADE PLAN: LONG on {long_exchange}, SHORT on {short_exchange} for {asset}")
@@ -664,28 +691,21 @@ class FundingArbitrageEngine:
         
         # Get entry prices
         try:
-            if long_exchange == "Backpack":
-                bp_positions = backpack.get_positions()
-                hl_positions = hyperliquid.get_positions()
-                
-                for pos in bp_positions:
-                    if pos.get("symbol").startswith(asset):
-                        stats["entry_prices"]["Backpack"] = float(pos.get("avgEntryPrice", 0))
-                
-                for pos in hl_positions:
-                    if pos.get("coin") == asset:
-                        stats["entry_prices"]["Hyperliquid"] = float(pos.get("entryPx", 0))
-            else:
-                bp_positions = backpack.get_positions()
-                hl_positions = hyperliquid.get_positions()
-                
-                for pos in hl_positions:
-                    if pos.get("coin") == asset:
-                        stats["entry_prices"]["Hyperliquid"] = float(pos.get("entryPx", 0))
-                        
-                for pos in bp_positions:
-                    if pos.get("symbol").startswith(asset):
-                        stats["entry_prices"]["Backpack"] = float(pos.get("avgEntryPrice", 0))
+            bp_positions = backpack.get_positions()
+            hl_positions = hyperliquid.get_positions()
+            
+            # Process Backpack positions
+            for pos in bp_positions:
+                if pos.get("symbol").startswith(asset):
+                    stats["entry_prices"]["Backpack"] = float(pos.get("avgEntryPrice", 0))
+                    break
+            
+            # Process Hyperliquid positions
+            for pos in hl_positions:
+                if pos.get("coin") == asset:
+                    stats["entry_prices"]["Hyperliquid"] = float(pos.get("entryPx", 0))
+                    break
+                    
         except Exception as e:
             logger.error(f"Error getting entry prices: {e}")
         
@@ -836,85 +856,20 @@ class FundingArbitrageEngine:
                             # Close positions on both exchanges
                             logger.info(f"Closing positions on both exchanges")
                             
-                            # First close the long position
-                            long_close_success = False
-                            short_close_success = False
+                            # Close positions using the shared helper method
+                            long_close_success = await self._close_exchange_position(
+                                long_exchange,
+                                backpack if long_exchange == "Backpack" else hyperliquid,
+                                asset,
+                                stats
+                            )
                             
-                            for attempt in range(3):  # Try up to 3 times for each exchange
-                                if long_exchange == "Backpack":
-                                    logger.info(f"Closing LONG position on Backpack for {asset} (attempt {attempt+1})")
-                                    result = backpack.close_asset_position(asset)
-                                    logger.info(f"Backpack close result: {result}")
-                                    
-                                    # Check if successful
-                                    if isinstance(result, dict) and "error" not in result:
-                                        long_close_success = True
-                                        # Capture exit prices if available in result
-                                        if "avgExitPrice" in result:
-                                            stats["exit_prices"]["Backpack"] = float(result["avgExitPrice"])
-                                        else:
-                                            # Fallback to market price
-                                            market_data = backpack.get_mark_prices()
-                                            for item in market_data:
-                                                if item.get("symbol") == bp_symbol:
-                                                    stats["exit_prices"]["Backpack"] = float(item.get("markPrice", 0))
-                                        break
-                                    else:
-                                        logger.warning(f"Failed to close Backpack position (attempt {attempt+1}): {result}")
-                                        await asyncio.sleep(1)  # Wait before retry
-                                else:
-                                    logger.info(f"Closing LONG position on Hyperliquid for {asset} (attempt {attempt+1})")
-                                    result = hyperliquid.close_position(asset)
-                                    logger.info(f"Hyperliquid close result: {result}")
-                                    
-                                    # Check if successful
-                                    if isinstance(result, dict) and "error" not in result:
-                                        long_close_success = True
-                                        # Capture exit price if available
-                                        if "px" in result:
-                                            stats["exit_prices"]["Hyperliquid"] = float(result["px"])
-                                        else:
-                                            # Try to get current market price
-                                            market_data = hyperliquid.get_market_data(asset)
-                                            if isinstance(market_data, dict) and "markPx" in market_data:
-                                                stats["exit_prices"]["Hyperliquid"] = float(market_data["markPx"])
-                                        break
-                                    else:
-                                        logger.warning(f"Failed to close Hyperliquid position (attempt {attempt+1}): {result}")
-                                        await asyncio.sleep(1)  # Wait before retry
-                            
-                            # Now close the short position
-                            for attempt in range(3):  # Try up to 3 times
-                                if short_exchange == "Backpack":
-                                    logger.info(f"Closing SHORT position on Backpack for {asset} (attempt {attempt+1})")
-                                    result = backpack.close_asset_position(asset)
-                                    logger.info(f"Backpack close result: {result}")
-                                    
-                                    # Check if successful
-                                    if isinstance(result, dict) and "error" not in result:
-                                        short_close_success = True
-                                        # Capture exit prices if not already set
-                                        if not stats["exit_prices"]["Backpack"] and "avgExitPrice" in result:
-                                            stats["exit_prices"]["Backpack"] = float(result["avgExitPrice"])
-                                        break
-                                    else:
-                                        logger.warning(f"Failed to close Backpack position (attempt {attempt+1}): {result}")
-                                        await asyncio.sleep(1)  # Wait before retry
-                                else:
-                                    logger.info(f"Closing SHORT position on Hyperliquid for {asset} (attempt {attempt+1})")
-                                    result = hyperliquid.close_position(asset)
-                                    logger.info(f"Hyperliquid close result: {result}")
-                                    
-                                    # Check if successful
-                                    if isinstance(result, dict) and "error" not in result:
-                                        short_close_success = True
-                                        # Capture exit price if not already set
-                                        if not stats["exit_prices"]["Hyperliquid"] and "px" in result:
-                                            stats["exit_prices"]["Hyperliquid"] = float(result["px"])
-                                        break
-                                    else:
-                                        logger.warning(f"Failed to close Hyperliquid position (attempt {attempt+1}): {result}")
-                                        await asyncio.sleep(1)  # Wait before retry
+                            short_close_success = await self._close_exchange_position(
+                                short_exchange,
+                                backpack if short_exchange == "Backpack" else hyperliquid,
+                                asset,
+                                stats
+                            )
                             
                             # Verify positions were actually closed
                             logger.info("Verifying positions were closed...")
@@ -1085,59 +1040,18 @@ class FundingArbitrageEngine:
             long_exchange = position.get('long_exchange')
             short_exchange = position.get('short_exchange')
             
-            # Close positions on both exchanges
-            long_close_success = False
-            short_close_success = False
+            # Close positions using the shared helper method
+            long_close_success = await self._close_exchange_position(
+                long_exchange,
+                backpack if long_exchange == "Backpack" else hyperliquid,
+                asset
+            )
             
-            # Close long position with retry
-            for attempt in range(3):
-                try:
-                    if long_exchange == "Backpack":
-                        logger.info(f"Closing LONG position on Backpack for {asset} (attempt {attempt+1})")
-                        result = backpack.close_asset_position(asset)
-                        long_close_success = result is not None and not (isinstance(result, dict) and "error" in result)
-                        logger.info(f"Backpack close result: {result}")
-                        if long_close_success:
-                            break
-                    elif long_exchange == "Hyperliquid":
-                        logger.info(f"Closing LONG position on Hyperliquid for {asset} (attempt {attempt+1})")
-                        result = hyperliquid.close_position(asset)
-                        long_close_success = result is not None and not (isinstance(result, dict) and "error" in result)
-                        logger.info(f"Hyperliquid close result: {result}")
-                        if long_close_success:
-                            break
-                    
-                    if not long_close_success:
-                        logger.warning(f"Attempt {attempt+1} to close {long_exchange} position failed. Retrying...")
-                        await asyncio.sleep(1)
-                except Exception as e:
-                    logger.error(f"Error in attempt {attempt+1} to close {long_exchange} position: {e}")
-                    await asyncio.sleep(1)
-            
-            # Close short position with retry
-            for attempt in range(3):
-                try:
-                    if short_exchange == "Backpack":
-                        logger.info(f"Closing SHORT position on Backpack for {asset} (attempt {attempt+1})")
-                        result = backpack.close_asset_position(asset)
-                        short_close_success = result is not None and not (isinstance(result, dict) and "error" in result)
-                        logger.info(f"Backpack close result: {result}")
-                        if short_close_success:
-                            break
-                    elif short_exchange == "Hyperliquid":
-                        logger.info(f"Closing SHORT position on Hyperliquid for {asset} (attempt {attempt+1})")
-                        result = hyperliquid.close_position(asset)
-                        short_close_success = result is not None and not (isinstance(result, dict) and "error" in result)
-                        logger.info(f"Hyperliquid close result: {result}")
-                        if short_close_success:
-                            break
-                    
-                    if not short_close_success:
-                        logger.warning(f"Attempt {attempt+1} to close {short_exchange} position failed. Retrying...")
-                        await asyncio.sleep(1)
-                except Exception as e:
-                    logger.error(f"Error in attempt {attempt+1} to close {short_exchange} position: {e}")
-                    await asyncio.sleep(1)
+            short_close_success = await self._close_exchange_position(
+                short_exchange,
+                backpack if short_exchange == "Backpack" else hyperliquid,
+                asset
+            )
             
             # Verify positions were actually closed
             try:
@@ -1145,14 +1059,15 @@ class FundingArbitrageEngine:
                 await asyncio.sleep(2)
                 
                 # Check both exchanges again to verify positions were closed
-                all_closed = True
+                bp_position_closed = True
+                hl_position_closed = True
                 
                 # Check Backpack positions
                 bp_positions = backpack.get_positions()
                 if isinstance(bp_positions, list):
                     for pos in bp_positions:
                         if pos.get("symbol", "").startswith(asset) and float(pos.get("positionSize", "0")) != 0:
-                            all_closed = False
+                            bp_position_closed = False
                             logger.warning(f"Backpack position still open: {pos}")
                             # Try one more time to close
                             if pos.get("symbol") == f"{asset}_USDC_PERP":
@@ -1164,13 +1079,13 @@ class FundingArbitrageEngine:
                 if isinstance(hl_positions, list):
                     for pos in hl_positions:
                         if pos.get("coin") == asset and float(pos.get("szi", "0")) != 0:
-                            all_closed = False
+                            hl_position_closed = False
                             logger.warning(f"Hyperliquid position still open: {pos}")
                             # Try one more time to close
                             logger.info("Making one final attempt to close Hyperliquid position")
                             hyperliquid.close_position(asset)
                 
-                if all_closed:
+                if bp_position_closed and hl_position_closed:
                     logger.info("All positions successfully closed")
                 else:
                     logger.warning("Some positions may still be open")
@@ -1196,4 +1111,76 @@ class FundingArbitrageEngine:
         
         except Exception as e:
             logger.error(f"Error closing position for {asset}: {str(e)}", exc_info=True)
-            return False 
+            return False
+
+    async def _close_exchange_position(self, exchange_name, exchange_obj, asset_name, stats_dict=None):
+        """
+        Helper method to close positions on an exchange with retries.
+        
+        Args:
+            exchange_name: Name of the exchange ("Backpack" or "Hyperliquid")
+            exchange_obj: Exchange client object
+            asset_name: Asset symbol to close
+            stats_dict: Optional dictionary to store exit prices (for monitoring)
+            
+        Returns:
+            bool: True if position was closed successfully, False otherwise
+        """
+        bp_symbol = f"{asset_name}_USDC_PERP"
+        success = False
+        
+        for attempt in range(3):
+            try:
+                logger.info(f"Closing position on {exchange_name} for {asset_name} (attempt {attempt+1})")
+                
+                if exchange_name == "Backpack":
+                    result = exchange_obj.close_asset_position(asset_name)
+                else:  # Hyperliquid
+                    result = exchange_obj.close_position(asset_name)
+                
+                # Check if successful
+                if isinstance(result, dict) and "error" in result:
+                    logger.warning(f"Failed to close {exchange_name} position (attempt {attempt+1}): {result}")
+                    await asyncio.sleep(1)  # Wait before retry
+                    continue
+                
+                success = True
+                logger.info(f"{exchange_name} close result: {result}")
+                
+                # If stats dictionary is provided, capture exit prices
+                if stats_dict is not None and "exit_prices" in stats_dict:
+                    if exchange_name == "Backpack":
+                        # Capture exit prices if available in result
+                        if isinstance(result, dict) and "avgExitPrice" in result:
+                            stats_dict["exit_prices"][exchange_name] = float(result["avgExitPrice"])
+                        else:
+                            # Fallback to market price
+                            try:
+                                market_data = exchange_obj.get_mark_prices()
+                                for item in market_data:
+                                    if item.get("symbol") == bp_symbol:
+                                        stats_dict["exit_prices"][exchange_name] = float(item.get("markPrice", 0))
+                                        break
+                            except Exception as e:
+                                logger.error(f"Error getting Backpack exit price: {e}")
+                    
+                    else:  # Hyperliquid
+                        # Capture exit price if available
+                        if isinstance(result, dict) and "px" in result:
+                            stats_dict["exit_prices"][exchange_name] = float(result["px"])
+                        else:
+                            # Try to get current market price
+                            try:
+                                market_data = exchange_obj.get_market_data(asset_name)
+                                if isinstance(market_data, dict) and "markPx" in market_data:
+                                    stats_dict["exit_prices"][exchange_name] = float(market_data["markPx"])
+                            except Exception as e:
+                                logger.error(f"Error getting Hyperliquid exit price: {e}")
+                
+                break  # Success, exit retry loop
+                
+            except Exception as e:
+                logger.error(f"Error closing {exchange_name} position (attempt {attempt+1}): {e}", exc_info=True)
+                await asyncio.sleep(1)  # Wait before retry
+        
+        return success

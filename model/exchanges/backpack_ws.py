@@ -99,6 +99,14 @@ class BackpackWebSocketClient:
         self.websocket = None
         logger.debug("Disconnect process complete.")
 
+    def is_connected(self) -> bool:
+        """Check if the WebSocket connection is active.
+        
+        Returns:
+            bool: True if the connection is open, False otherwise
+        """
+        return self.websocket is not None and self.websocket.open
+
     async def subscribe(self, stream_name: str, handler: Callable):
         """Subscribes to a WebSocket stream."""
         if not self.websocket or not self.websocket.open:
