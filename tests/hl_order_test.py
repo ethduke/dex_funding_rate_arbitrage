@@ -1,42 +1,48 @@
 import time
 from utils.logger import setup_logger
-from model.exchanges.hyperliquid import HyperliquidClient
-from utils.config import CONFIG
+from model.exchanges.hyperliquid import HyperliquidExchange
 
 # Initialize logger
-logger = setup_logger("hl_test")
+logger = setup_logger(__name__)
 
 def test_hyperliquid_market_order(symbol: str, amount: float, side: str):
     """Test Hyperliquid market order using the official SDK"""
     
     logger.info("=== Starting Hyperliquid Market Order Test ===")
     logger.info(f"Asset: {symbol}")
-    logger.info(f"Position size: {amount} ETH")
+    logger.info(f"Position size: {amount} USD")
+    logger.info(f"Side: {side}")
     
     try:
         # Initialize client - use testnet for testing
         logger.info("Initializing Hyperliquid client...")
-        hl = HyperliquidClient(testnet=True)
+        hl = HyperliquidExchange()
         logger.info(f"Using address: {hl.address}")
         
         # Get funding rates
         logger.info("Fetching funding rates...")
         funding_data = hl.get_funding_rates()
-        logger.info(f"Found funding data: {funding_data}")
         
         # Check current positions
         logger.info("Checking current positions...")
         positions = hl.get_positions()
         logger.info(f"Current positions: {positions}")
         
-        # Place a market order
-        logger.info(f"Placing {amount} ETH market sell order...")
-        is_buy = True if side == "Ask" else False
-        order_result = hl.place_market_order(
-            coin=symbol,
-            is_buy=is_buy, 
-            size=amount
-        )
+        # Place a market order based on side parameter
+        order_type = "buy" if side.lower() == "bid" else "sell"
+        logger.info(f"Placing {amount} USD market {order_type} order for {symbol}...")
+        
+        if side.lower() == "bid":
+            order_result = hl.open_long(
+                asset=symbol,
+                usd_amount=amount
+            )
+        else:
+            order_result = hl.open_short(
+                asset=symbol,
+                usd_amount=amount
+            )
+            
         logger.info(f"Order result: {order_result}")
         
         if order_result.get("status") == "ok":
@@ -51,7 +57,7 @@ def test_hyperliquid_market_order(symbol: str, amount: float, side: str):
             
             # Wait a moment for the order to process
             logger.info("Waiting 2 seconds...")
-            time.sleep(20)
+            time.sleep(2)
             
             # Close the position
             logger.info(f"Closing {symbol} position...")
@@ -75,4 +81,5 @@ def test_hyperliquid_market_order(symbol: str, amount: float, side: str):
     logger.info("=== Hyperliquid Market Order Test Complete ===")
 
 if __name__ == "__main__":
-    test_hyperliquid_market_order("BTC", 0.001, "Ask") 
+    # Updated the default parameters to a more common asset
+    test_hyperliquid_market_order("BTC", 100, "Ask") 

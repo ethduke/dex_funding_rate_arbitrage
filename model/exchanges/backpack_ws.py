@@ -2,14 +2,13 @@ import asyncio
 import json
 import time
 import base64
-import logging
 import websockets
 import nacl.signing
 from typing import Dict, Optional, List, Callable
-
+from utils.logger import setup_logger
 from utils.config import CONFIG
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 class BackpackWebSocketClient:
     def __init__(self):
@@ -44,24 +43,32 @@ class BackpackWebSocketClient:
     async def connect(self):
         """Connects to the WebSocket server and starts listening."""
         if self.websocket and self.websocket.open:
-            logger.info("WebSocket already connected.")
+            logger.debug("WebSocket already connected.")
             return
 
-        logger.info(f"Attempting to connect to WebSocket: {self.ws_url}")
+        logger.debug(f"Attempting to connect to WebSocket: {self.ws_url}")
         try:
             # Added debug logging around connect
             logger.debug("Calling websockets.connect...")
             self.websocket = await websockets.connect(self.ws_url, ping_interval=60, ping_timeout=120)
             logger.debug("websockets.connect successful.")
-            logger.info("WebSocket connection established.")
+            logger.debug("WebSocket connection established.")
             self._stop_event.clear()
             self._connection_task = asyncio.create_task(self._listen())
             # Resubscribe to any stored subscriptions
             await self._resubscribe()
-            # Subscribe to any pending subscriptions made before connection
             await self._process_pending_subscriptions()
-        except (websockets.exceptions.ConnectionClosedError, websockets.exceptions.InvalidHandshake, Exception) as e:
+        except (websockets.exceptions.ConnectionClosedError, websockets.exceptions.InvalidHandshake) as e:
             logger.error(f"WebSocket connection failed: {e}", exc_info=True) # Log traceback
+            self.websocket = None
+        except RuntimeError as e:
+            if "can't register atexit after shutdown" in str(e):
+                logger.warning("Cannot connect to WebSocket during interpreter shutdown.")
+            else:
+                logger.error(f"WebSocket connection failed with runtime error: {e}", exc_info=True)
+            self.websocket = None
+        except Exception as e:
+            logger.error(f"WebSocket connection failed: {e}", exc_info=True)
             self.websocket = None
             # Consider adding reconnection logic here
             # e.g., await asyncio.sleep(5); await self.connect()
@@ -76,15 +83,15 @@ class BackpackWebSocketClient:
             try:
                 await self._connection_task
             except asyncio.CancelledError:
-                logger.info("WebSocket listener task cancelled.")
+                logger.debug("WebSocket listener task cancelled.")
             self._connection_task = None
             logger.debug("Listener task cancelled.")
 
         if self.websocket and self.websocket.open:
-            logger.info("Closing WebSocket connection.")
+            logger.debug("Closing WebSocket connection.")
             try:
                 await self.websocket.close()
-                logger.info("WebSocket connection closed.")
+                logger.debug("WebSocket connection closed.")
             except Exception as e:
                 logger.error(f"Error closing websocket: {e}", exc_info=True)
         else:
@@ -100,7 +107,7 @@ class BackpackWebSocketClient:
             self._pending_subscriptions[stream_name] = handler
             return
 
-        logger.info(f"Subscribing to stream: {stream_name}")
+        logger.debug(f"Subscribing to stream: {stream_name}")
         self.subscriptions[stream_name] = handler # Store handler
         payload = {
             "method": "SUBSCRIBE",
@@ -125,7 +132,7 @@ class BackpackWebSocketClient:
             logger.debug(f"Sending subscription payload for {stream_name}: {json.dumps(payload)}")
             await self.websocket.send(json.dumps(payload))
             logger.debug(f"Subscription payload sent for {stream_name}.")
-            logger.info(f"Successfully sent subscription request for {stream_name}")
+            logger.debug(f"Successfully sent subscription request for {stream_name}")
         except websockets.exceptions.ConnectionClosedError as e:
             logger.error(f"Failed to send subscription for {stream_name}. Connection closed: {e}")
             # Connection closed, queue subscription for reconnect
@@ -153,7 +160,7 @@ class BackpackWebSocketClient:
                 del self.subscriptions[stream_name] # Remove from active subscriptions
             return
 
-        logger.info(f"Unsubscribing from stream: {stream_name}")
+        logger.debug(f"Unsubscribing from stream: {stream_name}")
         payload = {
             "method": "UNSUBSCRIBE",
             "params": [stream_name]
@@ -165,7 +172,7 @@ class BackpackWebSocketClient:
             logger.debug(f"Unsubscription payload sent for {stream_name}.")
             if stream_name in self.subscriptions:
                 del self.subscriptions[stream_name]
-            logger.info(f"Successfully sent unsubscription request for {stream_name}")
+            logger.debug(f"Successfully sent unsubscription request for {stream_name}")
         except websockets.exceptions.ConnectionClosedError as e:
             logger.error(f"Failed to send unsubscription for {stream_name}. Connection closed: {e}")
             self.websocket = None # Mark as disconnected
@@ -185,7 +192,7 @@ class BackpackWebSocketClient:
             return
         
         self.subscriptions.clear() # Clear temporarily
-        logger.info(f"Resubscribing to {len(current_subscriptions)} streams...")
+        logger.debug(f"Resubscribing to {len(current_subscriptions)} streams...")
         for stream_name, handler in current_subscriptions:
             logger.debug(f"Attempting to resubscribe to {stream_name}")
             try:
@@ -204,7 +211,7 @@ class BackpackWebSocketClient:
             logger.debug("No pending subscriptions to process.")
             return
             
-        logger.info(f"Processing {len(pending)} pending subscriptions...")
+        logger.debug(f"Processing {len(pending)} pending subscriptions...")
         self._pending_subscriptions.clear() # Clear pending list before processing
         for stream_name, handler in pending:
             logger.debug(f"Processing pending subscription for {stream_name}")
@@ -212,7 +219,7 @@ class BackpackWebSocketClient:
 
     async def _listen(self):
         """Listens for messages and handles them."""
-        logger.info("WebSocket listener task started.")
+        logger.debug("WebSocket listener task started.")
         try:
             while not self._stop_event.is_set():
                 message_str = None # Initialize for error logging
@@ -244,7 +251,7 @@ class BackpackWebSocketClient:
                          if "error" in message:
                             logger.error(f"Received error response from server: {message}")
                          else:
-                            logger.info(f"Received confirmation response from server: {message}")
+                            logger.debug(f"Received confirmation response from server: {message}")
                     elif isinstance(message, dict) and message.get("method") == "PING":
                         # Handle PING from server if needed (library usually handles PONG)
                         logger.debug("Received PING from server, sending PONG.")
@@ -258,7 +265,7 @@ class BackpackWebSocketClient:
                     # Stop listening, connection task will end. Reconnection handled elsewhere if needed.
                     break
                 except websockets.exceptions.ConnectionClosedOK as e:
-                    logger.info(f"WebSocket connection closed normally by server. Code: {e.code}, Reason: {e.reason}")
+                    logger.debug(f"WebSocket connection closed normally by server. Code: {e.code}, Reason: {e.reason}")
                     break # Exit listen loop on normal closure
                 except json.JSONDecodeError:
                     logger.error(f"Failed to decode JSON message: {message_str}")
@@ -271,9 +278,9 @@ class BackpackWebSocketClient:
 
 
         except asyncio.CancelledError:
-            logger.info("WebSocket listener task explicitly cancelled.")
+            logger.debug("WebSocket listener task explicitly cancelled.")
         finally:
-            logger.info("WebSocket listener task stopped.")
+            logger.debug("WebSocket listener task stopped.")
             # Ensure connection is marked as closed if exiting loop unexpectedly
             if self.websocket and self.websocket.open:
                  try:
@@ -291,14 +298,13 @@ class BackpackWebSocketClient:
             mark_price = data.get('p')
             funding_rate = data.get('f')
             timestamp_us = data.get('E') 
-            logger.info(f"Mark Price Update [{symbol}]: Price={mark_price}, Funding={funding_rate}, Time={timestamp_us}")
+            logger.debug(f"Mark Price Update [{symbol}]: Price={mark_price}, Funding={funding_rate}, Time={timestamp_us}")
             # Add further processing logic here (e.g., update internal state, notify other components)
         except Exception as e:
             logger.error(f"Error processing mark price data: {e} | Data: {data}", exc_info=True)
 
     async def handle_position_query(self, data: Dict):
         """Handles individual position update events."""
-        # logger.info(f"Received Position Update") # Can be noisy, log specific details instead
         try:
             # Data is a single dictionary, not a list
             position = data
@@ -309,7 +315,7 @@ class BackpackWebSocketClient:
             est_liq_price = position.get('l') # Use 'l' for liquidation price based on provided log
             mark_price = position.get('M') # Use 'M' for mark price based on provided log
 
-            logger.info(
+            logger.debug(
                 f"  Position Update [{symbol}]: Qty={net_quantity}, Entry={entry_price}, "
                 f"uPnL={pnl_unrealized}, Mark={mark_price}, LiqEst={est_liq_price}"
             )

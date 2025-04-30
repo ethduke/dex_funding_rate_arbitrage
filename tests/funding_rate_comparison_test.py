@@ -1,16 +1,14 @@
 import asyncio
-import logging
 import json
 import time
 import functools
 from typing import Dict, Tuple, Literal
-
+from utils.logger import setup_logger
 from model.exchanges.hyperliquid import HyperliquidExchange
 from model.exchanges.backpack_ws import BackpackWebSocketClient
-from utils.config import CONFIG
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger("FundingRateComparison")
+# Initialize logger
+logger = setup_logger(__name__)
 
 # Symbol configuration
 TARGET_SYMBOL = "ETH" 

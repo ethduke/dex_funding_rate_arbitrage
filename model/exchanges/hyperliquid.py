@@ -4,11 +4,11 @@ import logging
 import requests
 from hyperliquid.exchange import Exchange
 from hyperliquid.info import Info
-
 from utils.config import CONFIG
 from model.exchanges.base import BaseExchange
+from utils.logger import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 class HyperliquidExchange(BaseExchange):
     def __init__(self):
@@ -25,9 +25,7 @@ class HyperliquidExchange(BaseExchange):
         
         self.info = Info(self.base_url, skip_ws=False)
         self.exchange = Exchange(self.account, self.base_url, account_address=self.address)
-        
-        print(f"Initialized client with address: {self.address}")
-    
+            
     def get_funding_rates(self) -> Dict:
         """Get predicted funding rates from the Hyperliquid API."""
         try:
@@ -40,7 +38,7 @@ class HyperliquidExchange(BaseExchange):
             }
             
             response = requests.post(
-                f"{self.base_url}/info",
+                f"{CONFIG.get('HYPERLIQUID_API_URL_INFO')}",
                 headers=headers,
                 json=payload,
                 timeout=10  
@@ -69,8 +67,82 @@ class HyperliquidExchange(BaseExchange):
             user_state = self.info.user_state(self.address)
             return user_state.get("assetPositions", [])
         except Exception as e:
-            print(f"Error getting positions: {e}")
+            logger.error(f"Error getting positions: {e}")
             return []
+    
+    def get_market_data(self, asset: str) -> Dict:
+        """Get current market data for an asset.
+        
+        Returns a dict with price and metadata or empty dict if not found.
+        """
+        try:
+            # Most direct way to get market data
+            response = requests.post(
+                f"{CONFIG.get('HYPERLIQUID_API_URL_INFO')}",
+                headers={"Content-Type": "application/json"},
+                json={"type": "marketData"},
+                timeout=5
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"Failed to get market data. Status code: {response.status_code}")
+                return {}
+                
+            market_data = response.json()
+            
+            # Also get universe metadata for szDecimals
+            meta_response = requests.post(
+                f"{CONFIG.get('HYPERLIQUID_API_URL_INFO')}",
+                headers={"Content-Type": "application/json"},
+                json={"type": "meta"},
+                timeout=5
+            )
+            
+            asset_info = {}
+            if meta_response.status_code == 200:
+                meta_data = meta_response.json()
+                for item in meta_data.get("universe", []):
+                    if item.get("name") == asset:
+                        asset_info = item
+                        break
+            
+            # Find the asset in market data
+            for item in market_data:
+                if item.get("coin") == asset:
+                    # Combine with metadata
+                    return {
+                        "price": float(item.get("markPx", 0)),
+                        "szDecimals": asset_info.get("szDecimals", 2)
+                    }
+            
+            return {}
+            
+        except Exception as e:
+            logger.error(f"Error getting market data: {e}")
+            return {}
+    
+    def get_price_from_api(self, asset: str, usd_amount: float) -> float:
+        try:
+            meta_response = requests.post(
+                f"{CONFIG.get('HYPERLIQUID_API_URL_INFO')}",
+                headers={"Content-Type": "application/json"},
+                json={"type": "allMids"},
+                timeout=5
+            )
+            if meta_response.status_code == 200:
+                all_prices = meta_response.json()
+                price = float(all_prices.get(asset))
+                token_amount = round(usd_amount / price, self.get_sz_decimals(asset))
+                logger.debug(f"Converting ${usd_amount} to {token_amount} {asset} at price ${price}")
+                return token_amount
+        except Exception as e:
+            logger.error(f"Error in fallback price lookup: {str(e)}")
+        
+        return 0
+
+    def usd_to_token_size(self, asset: str, usd_amount: float) -> float:
+        """Convert USD amount to token size with proper decimal precision."""
+        return self.get_price_from_api(asset, usd_amount)
     
     def place_market_order(
         self,
@@ -101,7 +173,7 @@ class HyperliquidExchange(BaseExchange):
             )
             return order_result
         except Exception as e:
-            print(f"Error placing market order: {e}")
+            logger.error(f"Error placing market order: {e}")
             return {"status": "error", "message": str(e)}
     
     def close_position(self, symbol: str) -> Dict:
@@ -111,23 +183,58 @@ class HyperliquidExchange(BaseExchange):
             order_result = self.exchange.market_close(symbol)
             return order_result
         except Exception as e:
-            print(f"Error closing position: {e}")
+            logger.error(f"Error closing position: {e}")
             return {"status": "error", "message": str(e)}
     
-    def open_long(self, asset: str, amount: float) -> Dict:
-        """Open a long position."""
+    def get_sz_decimals(self, asset: str) -> int:
+        """Get the size decimals for an asset from the universe metadata."""
+        try:
+            response = requests.post(
+                f"{CONFIG.get('HYPERLIQUID_API_URL_INFO')}",
+                headers={"Content-Type": "application/json"},
+                json={"type": "meta"},
+                timeout=5
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"Failed to get asset metadata. Status code: {response.status_code}")
+                return 2  # Default to 2 decimals
+                
+            data = response.json()
+            
+            # Find the asset in the universe
+            for asset_meta in data.get("universe", []):
+                if asset_meta.get("name") == asset:
+                    return asset_meta.get("szDecimals", 2)
+            
+            return 2  # Default to 2 decimals if asset not found
+            
+        except Exception as e:
+            logger.error(f"Error getting size decimals: {e}")
+            return 2  # Default to 2 decimals on error
+    
+    def open_long(self, asset: str, usd_amount: float) -> Dict:
+        """Open a long position with USD amount."""
+        token_amount = self.usd_to_token_size(asset, usd_amount)
+        if token_amount <= 0:
+            return {"status": "error", "message": f"Invalid conversion for {asset}"}
+            
         return self.place_market_order(
             symbol=asset,
             side="bid",
-            quantity=amount
+            quantity=token_amount
         )
     
-    def open_short(self, asset: str, amount: float) -> Dict:
-        """Open a short position."""
+    def open_short(self, asset: str, usd_amount: float) -> Dict:
+        """Open a short position with USD amount."""
+        token_amount = self.usd_to_token_size(asset, usd_amount)
+        if token_amount <= 0:
+            return {"status": "error", "message": f"Invalid conversion for {asset}"}
+            
         return self.place_market_order(
             symbol=asset,
             side="ask",
-            quantity=amount
+            quantity=token_amount
         )
 
     def format_symbol(self, asset: str) -> str:
@@ -138,7 +245,6 @@ class HyperliquidExchange(BaseExchange):
         """Subscribe to funding rate updates."""
         # Simple parse for funding events
         def funding_callback(data):
-            print(f"Funding received: {data}")
             if callback:
                 callback(data)
                 

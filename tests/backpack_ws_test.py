@@ -2,9 +2,11 @@ import logging
 import asyncio
 from model.exchanges.backpack_ws import BackpackWebSocketClient
 from utils.config import CONFIG
+from utils.logger import setup_logger
 
-logger = logging.getLogger(__name__)
-# Example Usage (can be run in a separate script or integrated)
+# Initialize logger
+logger = setup_logger(__name__)
+
 async def main():
     # Set logging level to DEBUG
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -12,7 +14,7 @@ async def main():
     # Load credentials securely
     logger.debug("Loading credentials...")
     api_key = CONFIG.get("BACKPACK_PUBLIC_KEY")
-    api_secret = CONFIG.get("BACKPACK_PRIVATE_KEY") # Ensure this is the b64 encoded private key
+    api_secret = CONFIG.get("BACKPACK_PRIVATE_KEY")
 
     if not api_key or not api_secret:
         logger.error("API Key or Secret not configured in CONFIG. Exiting.")
@@ -20,7 +22,7 @@ async def main():
         return
     logger.debug("Credentials loaded.")
 
-    client = BackpackWebSocketClient(api_key=api_key, api_secret=api_secret)
+    client = BackpackWebSocketClient()
 
     try:
         logger.debug("Connecting client...")

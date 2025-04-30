@@ -3,15 +3,53 @@ import datetime
 from typing import Dict, List
 from utils.logger import setup_logger
 from model.exchanges.backpack import BackpackExchange
-from model.exchanges.hyperliquid import HyperliquidClient
-from model.core.api.processors import (
-    process_backpack_funding_rates,
-    process_hyperliquid_funding_rates
-)
-from utils.config import CONFIG
+from model.exchanges.hyperliquid import HyperliquidExchange
 
 # Initialize logger
-logger = setup_logger("arb_test")
+logger = setup_logger(__name__)
+
+def process_backpack_funding_rates(backpack_data: Dict) -> Dict[str, Dict]:
+    """Process raw Backpack funding rate data into normalized format."""
+    if not backpack_data or isinstance(backpack_data, dict) and "error" in backpack_data:
+        logger.error(f"Invalid Backpack data: {backpack_data}")
+        return {}
+        
+    result = {}
+    for item in backpack_data:
+        # Extract base symbol (e.g., "BTC" from "BTC_USDC_PERP")
+        symbol = item.get("symbol", "").split("_")[0]
+        if not symbol:
+            continue
+            
+        result[symbol] = {
+            "rate": float(item.get("fundingRate", 0)),
+            "next_funding_time": item.get("nextFundingTimestamp", 0),
+            "exchange": "Backpack",
+            "mark_price": float(item.get("markPrice", 0)),
+            "index_price": float(item.get("indexPrice", 0))
+        }
+    return result
+
+def process_hyperliquid_funding_rates(hl_data: List) -> Dict[str, Dict]:
+    """Process raw Hyperliquid funding rate data into normalized format."""
+    if not hl_data:
+        logger.error("Empty Hyperliquid data")
+        return {}
+        
+    result = {}
+    for asset_data in hl_data:
+        if not isinstance(asset_data, list) or len(asset_data) < 2:
+            continue
+            
+        asset = asset_data[0]
+        for venue_data in asset_data[1]:
+            if venue_data[0] == "HlPerp":  # Only use Hyperliquid's own rate
+                result[asset] = {
+                    "rate": float(venue_data[1].get("fundingRate", 0)),
+                    "next_funding_time": venue_data[1].get("nextFundingTime", 0),
+                    "exchange": "Hyperliquid"
+                }
+    return result
 
 def find_best_arbitrage_opportunity(backpack_rates, hyperliquid_rates, min_diff=0.0001):
     """Find the best funding rate arbitrage opportunity between exchanges"""
@@ -59,7 +97,7 @@ def test_funding_arbitrage():
         # Initialize exchange clients
         logger.info("Initializing exchange clients...")
         backpack = BackpackExchange()
-        hyperliquid = HyperliquidClient()
+        hyperliquid = HyperliquidExchange()
         
         # Get funding rates from both exchanges
         logger.info("Fetching funding rates from Backpack...")
@@ -122,10 +160,10 @@ def test_funding_arbitrage():
         # Hyperliquid position (opposite side)
         if long_on_backpack:
             logger.info(f"Opening SHORT position on Hyperliquid for {asset}...")
-            hl_order = hyperliquid.place_market_order(asset, False, position_size_usd)
+            hl_order = hyperliquid.place_market_order(asset, "Ask", quote_quantity=position_size_usd)
         else:
             logger.info(f"Opening LONG position on Hyperliquid for {asset}...")
-            hl_order = hyperliquid.place_market_order(asset, True, position_size_usd)
+            hl_order = hyperliquid.place_market_order(asset, "Bid", quote_quantity=position_size_usd)
         
         logger.info(f"Hyperliquid order result: {hl_order}")
         

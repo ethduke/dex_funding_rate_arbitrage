@@ -120,4 +120,4 @@ def test_backpack_market_order(symbol: str, amount_usd: float, side: str):
     logger.info("=== Backpack Market Order Test Complete ===")
 
 if __name__ == "__main__":
-    test_backpack_market_order("BTC", 50, "Bid")  # Changed from "Ask" to "Bid" for a long position 
+    test_backpack_market_order("BTC", 50, "Bid") 

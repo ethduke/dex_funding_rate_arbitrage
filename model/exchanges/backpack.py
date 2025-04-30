@@ -5,10 +5,10 @@ import urllib.parse
 import requests
 import nacl.signing
 from utils.config import CONFIG
-import logging
 from model.exchanges.base import BaseExchange
+from utils.logger import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 class BackpackExchange(BaseExchange):
     def __init__(self):
@@ -107,7 +107,7 @@ class BackpackExchange(BaseExchange):
         
         try:
             response = requests.get(url, proxies=self.proxies, timeout=10)  # Add 10 second timeout
-            logger.info(f"Mark prices response: {response.json()}")
+            logger.debug(f"Mark prices response: {response.json()}")
             
             # Check response status and content before parsing JSON
             if response.status_code != 200:
@@ -209,15 +209,44 @@ class BackpackExchange(BaseExchange):
         client_id: Optional[int] = None
     ) -> Dict:
         """Close an existing position."""
+        logger.debug(f"Attempting to close position for {symbol}, position_size={position_size}")
+        
         if position_size is None:
             # Get positions to find the size
             positions = self.get_positions()
+            
+            if not isinstance(positions, list):
+                logger.error(f"Failed to get positions: {positions}")
+                return {"error": "Failed to get positions", "details": positions}
+                
+            logger.debug(f"Current positions: {positions}")
+            position_found = False
+            
             for position in positions:
                 if position.get("symbol") == symbol:
-                    position_size = float(position.get("positionSize", "0"))
+                    position_found = True
+                    
+                    # Check multiple possible fields for position size
+                    if "netQuantity" in position:
+                        position_size = float(position.get("netQuantity", "0"))
+                        logger.debug(f"Using netQuantity field for position size: {position_size}")
+                    elif "positionSize" in position:
+                        position_size = float(position.get("positionSize", "0"))
+                        logger.debug(f"Using positionSize field for position size: {position_size}")
+                    else:
+                        # Log all available keys to help diagnose
+                        logger.warning(f"Could not find size field. Available keys: {list(position.keys())}")
+                        position_size = 0
+                    
+                    logger.debug(f"Found position for {symbol} with size {position_size}")
                     break
             
+            if not position_found:
+                logger.warning(f"No position found for symbol {symbol}")
+                return {"error": "No position found for symbol", "symbol": symbol}
+                
             if position_size is None or position_size == 0:
+                logger.warning(f"Position found for {symbol} but size is 0, nothing to close")
                 return {"error": "No position found for symbol", "symbol": symbol}
         
         # Determine side based on position direction
@@ -225,6 +254,8 @@ class BackpackExchange(BaseExchange):
         
         # Use absolute value for quantity
         quantity = abs(position_size)
+        
+        logger.debug(f"Placing order to close position: symbol={symbol}, side={side}, quantity={quantity}")
         
         return self.place_market_order(
             symbol=symbol,
@@ -281,12 +312,35 @@ class BackpackExchange(BaseExchange):
         
         # Get positions
         positions = self.get_positions()
-        for position in positions:
-            if position["symbol"] == symbol:
-                size = float(position.get("positionSize", "0"))
-                if size != 0:
-                    return self.close_position(symbol, size)
+        logger.info(f"Positions: {positions}")
         
+        # First check if positions is a list (as expected)
+        if not isinstance(positions, list):
+            logger.error(f"Expected positions to be a list, got {type(positions)}: {positions}")
+            return positions  # Return the error
+        
+        for position in positions:
+            if position.get("symbol") == symbol:
+                # Check multiple possible fields for position size
+                size = None
+                if "netQuantity" in position:
+                    size = float(position.get("netQuantity", "0"))
+                    logger.info(f"Using netQuantity field for position size: {size}")
+                elif "positionSize" in position:
+                    size = float(position.get("positionSize", "0"))
+                    logger.info(f"Using positionSize field for position size: {size}")
+                else:
+                    # Log all available keys to help diagnose
+                    logger.warning(f"Could not find size field. Available keys: {list(position.keys())}")
+                    size = 0
+                
+                if size != 0:
+                    logger.info(f"Found position for {symbol} with size {size}, closing...")
+                    return self.close_position(symbol, size)
+                else:
+                    logger.warning(f"Position found for {symbol} but size is 0, nothing to close")
+        
+        logger.warning(f"No position found for {symbol}")
         return None
         
     def subscribe_to_funding_updates(self, callback: Callable) -> Any:

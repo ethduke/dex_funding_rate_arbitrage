@@ -37,13 +37,21 @@ class Config:
 
         # Hyperliquid credentials
         self.HYPERLIQUID_API_URL = config.get("HYPERLIQUID_API_URL", "https://api.hyperliquid.xyz")
+        self.HYPERLIQUID_API_URL_INFO = f"{self.HYPERLIQUID_API_URL}/info"
 
         self.HYPERLIQUID_ADDRESS = os.environ.get("HYPERLIQUID_ADDRESS")
 
         self.HYPERLIQUID_API_PRIVATE_KEY = os.environ.get("HYPERLIQUID_API_PRIVATE_KEY")
         if not self.HYPERLIQUID_API_PRIVATE_KEY:
             raise ValueError("Hyperliquid private key not found in environment variables")
-    
+        
+        # Arbitrage Engine Configuration
+        self.POSITION_SIZE = float(config.get("POSITION_SIZE"))
+        self.MIN_RATE_DIFFERENCE = float(config.get("MIN_RATE_DIFFERENCE"))
+        self.MIN_HOLD_TIME_SECONDS = int(config.get("MIN_HOLD_TIME_SECONDS"))
+        self.MAGNITUDE_REDUCTION_THRESHOLD = float(config.get("MAGNITUDE_REDUCTION_THRESHOLD"))
+        self.CHECK_INTERVAL_MINUTES = int(config.get("CHECK_INTERVAL_MINUTES"))
+        self.MAX_CONCURRENT_POSITIONS = int(config.get("MAX_CONCURRENT_POSITIONS"))
     def get(self, key: str, default: Any = None) -> Any:
         """
         Get configuration value by key name.
