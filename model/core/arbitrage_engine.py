@@ -762,17 +762,7 @@ class FundingArbitrageEngine:
         
         try:
             # Use integrated WebSocket if enabled
-            if self.use_ws and backpack.use_ws:
-                # Subscribe to the mark price stream using the integrated WebSocket
-                logger.info(f"Using integrated Backpack WebSocket for {bp_symbol}")
-                await backpack.ws_client.subscribe(f"markPrice.{bp_symbol}", bp_rate_callback)
-            else:
-                # For backwards compatibility - create a standalone WebSocket client
-                from model.exchanges.backpack_ws import BackpackWebSocketClient
-                # Create and connect to a new WebSocket
-                bp_client = BackpackWebSocketClient()
-                await bp_client.connect()
-                await bp_client.subscribe(f"markPrice.{bp_symbol}", bp_rate_callback)
+            await backpack.ws_client.subscribe(f"markPrice.{bp_symbol}", bp_rate_callback)
             
             # Subscribe to Hyperliquid updates
             hyperliquid.subscribe_to_funding_updates(hl_rate_callback)
@@ -987,15 +977,6 @@ class FundingArbitrageEngine:
                     except asyncio.CancelledError:
                         pass
             
-            # Clean up standalone WebSocket if we created one
-            if not self.use_ws or not backpack.use_ws:
-                try:
-                    from model.exchanges.backpack_ws import BackpackWebSocketClient
-                    # Only try to disconnect if we have a standalone client
-                    if 'bp_client' in locals() and isinstance(bp_client, BackpackWebSocketClient):
-                        await bp_client.disconnect()
-                except:
-                    pass
     
     async def _poll_funding_rates(self, backpack, hyperliquid, asset, funding_rate_queue):
         """Periodically poll funding rates as a backup."""
