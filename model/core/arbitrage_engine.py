@@ -242,6 +242,8 @@ class FundingArbitrageEngine:
                 # Get latest funding rates
                 exchange_rates = {}
                 logger.debug("Fetching funding rates from exchanges...")
+                
+                # Get rates from all exchanges
                 for exchange_name, exchange in self.exchanges.items():
                     logger.debug(f"Getting funding rates from {exchange_name}...")
                     try:
@@ -255,6 +257,12 @@ class FundingArbitrageEngine:
                         logger.debug(f"Processed {len(exchange_rates[exchange_name])} assets for {exchange_name}")
                     except Exception as e:
                         logger.error(f"Error getting funding rates from {exchange_name}: {str(e)}", exc_info=True)
+                        
+                        # Check if the exception contains a 503 error code
+                        error_str = str(e).lower()
+                        if "503" in error_str or "service temporarily unavailable" in error_str:
+                            logger.error(f"{exchange_name} API is unavailable (503 Service Temporarily Unavailable detected in error). Exiting program.")
+                            await self.stop()
                 
                 # Find arbitrage opportunities
                 logger.debug("Finding arbitrage opportunities...")

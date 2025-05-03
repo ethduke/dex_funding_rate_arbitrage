@@ -1,5 +1,4 @@
 import asyncio
-import logging
 from utils.logger import setup_logger
 from model.core.arbitrage_engine import FundingArbitrageEngine
 from utils.config import CONFIG
@@ -34,6 +33,11 @@ async def main():
         logger.info("Program interrupted by user. Shutting down...")
         if 'engine' in locals() and engine.running:
             await engine.stop()
+    except SystemExit as e:
+        logger.info(f"Program is exiting with code {e.code}")
+        if 'engine' in locals() and engine.running:
+            await engine.stop()
+        logger.error("Exiting due to API service unavailability. Please try again later.")
     except Exception as e:
         logger.error(f"Unexpected error in main execution: {str(e)}")
     finally:
@@ -46,3 +50,6 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Program interrupted during startup. Exiting...")
+    except SystemExit as e:
+        logger.info(f"Program is exiting during startup with code {e.code}")
+        logger.error("Exiting due to API service unavailability. Please try again later.")

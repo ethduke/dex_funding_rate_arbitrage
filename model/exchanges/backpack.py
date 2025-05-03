@@ -8,6 +8,7 @@ from utils.config import CONFIG
 from model.exchanges.base import BaseExchange
 from utils.logger import setup_logger
 from model.exchanges.backpack_ws import BackpackWebSocketClient
+import json
 
 logger = setup_logger(__name__)
 
@@ -124,16 +125,25 @@ class BackpackExchange(BaseExchange):
         
         try:
             response = requests.get(url, proxies=self.proxies, timeout=10)  # Add 10 second timeout
-            logger.debug(f"Mark prices response: {response.json()}")
             
             # Check response status and content before parsing JSON
             if response.status_code != 200:
+                logger.error(f"API error: status code {response.status_code}, response: {response.text}")
                 return {"error": f"API error: status code {response.status_code}", "response": response.text}
             
             if not response.text:
+                logger.error("Empty response from API")
                 return {"error": "Empty response from API", "status_code": response.status_code}
+            
+            # Try to parse JSON, handle decode errors explicitly
+            try:
+                data = response.json()
+                logger.debug(f"Mark prices response: {data}")
+                return data
+            except json.JSONDecodeError as json_err:
+                logger.error(f"JSON decode error: {json_err}, response text: {response.text}")
+                return {"error": f"JSON decode error: {str(json_err)}", "response": response.text}
                 
-            return response.json()
         except requests.Timeout:
             logger.error("Request to Backpack API timed out")
             return {"error": "Request timed out"}
@@ -383,13 +393,28 @@ class BackpackExchange(BaseExchange):
     def process_funding_rates(self, mark_prices: List[Dict]) -> Dict[str, Dict]:
         """Convert Backpack mark prices to a normalized funding rate dict."""
         result = {}
+        
+        # Check if we received an error response
+        if isinstance(mark_prices, dict) and "error" in mark_prices:
+            logger.error(f"Error in mark prices data: {mark_prices}")
+            return result
+            
+        # Check if we received a valid list of market data
+        if not isinstance(mark_prices, list):
+            logger.error(f"Unexpected format for mark_prices: {type(mark_prices)}, content: {mark_prices}")
+            return result
+            
         for item in mark_prices:
-            symbol = item.get("symbol", "").split("_")[0]  
-            result[symbol] = {
-                "rate": float(item.get("fundingRate", "0")),
-                "next_funding_time": item.get("nextFundingTimestamp", 0),
-                "exchange": "Backpack",
-                "mark_price": float(item.get("markPrice", "0")),
-                "index_price": float(item.get("indexPrice", "0"))
-            }
+            try:
+                symbol = item.get("symbol", "").split("_")[0]  
+                result[symbol] = {
+                    "rate": float(item.get("fundingRate", "0")),
+                    "next_funding_time": item.get("nextFundingTimestamp", 0),
+                    "exchange": "Backpack",
+                    "mark_price": float(item.get("markPrice", "0")),
+                    "index_price": float(item.get("indexPrice", "0"))
+                }
+            except Exception as e:
+                logger.error(f"Error processing mark price item: {e}, item: {item}")
+                
         return result 

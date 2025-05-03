@@ -46,20 +46,20 @@ class HyperliquidExchange(BaseExchange):
             
             if response.status_code != 200:
                 logger.error(f"Failed to get funding rates. Status code: {response.status_code}")
-                return {}
+                return {"error": f"API error: status code {response.status_code}", "response": response.text}
                 
             data = response.json()
             return data
             
         except requests.Timeout:
             logger.error("Request to Hyperliquid API timed out")
-            return {}
+            return {"error": "Request timed out"}
         except requests.RequestException as e:
             logger.error(f"Request to Hyperliquid API failed: {str(e)}")
-            return {}
+            return {"error": f"Request failed: {str(e)}"}
         except Exception as e:
             logger.error(f"Error getting funding rates: {e}")
-            return {}
+            return {"error": f"Unexpected error: {str(e)}"}
     
     def get_positions(self) -> List[Dict]:
         """Get current positions."""
