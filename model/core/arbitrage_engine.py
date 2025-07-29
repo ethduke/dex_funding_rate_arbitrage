@@ -5,9 +5,10 @@ from typing import Dict, List, Optional, Type
 from datetime import datetime
 from utils.logger import setup_logger
 
-from model.exchanges.base import BaseExchange
 from model.exchanges.backpack import BackpackExchange
 from model.exchanges.hyperliquid import HyperliquidExchange
+from model.exchanges.lighter import LighterExchange
+from model.exchanges.base import BaseExchange
 from utils.config import CONFIG
 
 logger = setup_logger(__name__)
@@ -46,15 +47,15 @@ class FundingArbitrageEngine:
         # Initialize exchange clients
         logger.info("Initializing exchange clients...")
         if exchanges is None:
-            exchanges = [BackpackExchange, HyperliquidExchange]
+            exchanges = [BackpackExchange, HyperliquidExchange, LighterExchange]
             
         self.exchanges = {}
         for exchange_class in exchanges:
             exchange_name = exchange_class.__name__.replace('Exchange', '')
             logger.info(f"Initializing {exchange_name} exchange...")
             try:
-                # Initialize Backpack with WebSocket support if enabled
-                if exchange_name == "Backpack":
+                # Initialize Backpack and Lighter with WebSocket support if enabled
+                if exchange_name == "Backpack" or exchange_name == "Lighter":
                     self.exchanges[exchange_name] = exchange_class(use_ws=self.use_ws)
                     logger.info(f"Successfully initialized {exchange_name} exchange with WebSocket={self.use_ws}")
                 else:
@@ -83,6 +84,12 @@ class FundingArbitrageEngine:
                     logger.info("Initializing Backpack WebSocket connection...")
                     connected = await backpack.initialize_ws()
                     logger.info(f"Backpack WebSocket connected: {connected}")
+                
+                lighter = self.exchanges.get("Lighter")
+                if lighter:
+                    logger.info("Initializing Lighter WebSocket connection...")
+                    connected = await lighter.initialize_ws()
+                    logger.info(f"Lighter WebSocket connected: {connected}")
             
             # Schedule initial check after a short delay
             logger.debug("Scheduling initial check after 5 seconds")
@@ -110,6 +117,11 @@ class FundingArbitrageEngine:
                 if backpack:
                     logger.info("Closing Backpack WebSocket connection...")
                     await backpack.close_ws()
+                
+                lighter = self.exchanges.get("Lighter")
+                if lighter:
+                    logger.info("Closing Lighter WebSocket connection...")
+                    await lighter.close_ws()
             
             # Cancel periodic check task if it exists
             if self.check_task:
@@ -406,10 +418,11 @@ class FundingArbitrageEngine:
             # Start monitoring task
             backpack = self.exchanges.get("Backpack")
             hyperliquid = self.exchanges.get("Hyperliquid")
+            lighter = self.exchanges.get("Lighter")
             
             # Create the monitoring task
             monitor_task = asyncio.create_task(
-                self.monitor_funding_rates(backpack, hyperliquid, opportunity)
+                self.monitor_funding_rates(backpack, hyperliquid, lighter, opportunity)
             )
             
             # Track the position and its monitor
@@ -626,7 +639,7 @@ class FundingArbitrageEngine:
         except Exception as e:
             logger.error(f"Error cleaning up positions: {str(e)}", exc_info=True)
     
-    async def monitor_funding_rates(self, backpack, hyperliquid, opportunity):
+    async def monitor_funding_rates(self, backpack, hyperliquid, lighter, opportunity):
         """Monitor funding rates and close positions when exit criteria are met."""
         logger.info(f"Starting funding rate monitor for {opportunity['asset']}...")
         asset = opportunity['asset']
@@ -635,16 +648,19 @@ class FundingArbitrageEngine:
         # Initial rates from the opportunity
         initial_hl_rate = opportunity['actions']['Hyperliquid']['rate']
         initial_bp_rate = opportunity['actions']['Backpack']['rate']
+        initial_lt_rate = opportunity['actions'].get('Lighter', {}).get('rate', 0)
         
         # Calculate initial metrics
         initial_hl_sign = 1 if initial_hl_rate >= 0 else -1
         initial_bp_sign = 1 if initial_bp_rate >= 0 else -1
-        initial_max_magnitude = max(abs(initial_hl_rate), abs(initial_bp_rate))
+        initial_lt_sign = 1 if initial_lt_rate >= 0 else -1
+        initial_max_magnitude = max(abs(initial_hl_rate), abs(initial_bp_rate), abs(initial_lt_rate))
         
         # Log initial conditions
         logger.info(f"Initial conditions for {asset}:")
         logger.info(f"  Hyperliquid rate: {initial_hl_rate:.8f} (sign: {initial_hl_sign})")
         logger.info(f"  Backpack rate: {initial_bp_rate:.8f} (sign: {initial_bp_sign})")
+        logger.info(f"  Lighter rate: {initial_lt_rate:.8f} (sign: {initial_lt_sign})")
         logger.info(f"  Initial max magnitude: {initial_max_magnitude:.8f}")
         logger.info(f"Exit strategy:")
         logger.info(f" Min hold time: {self.min_hold_time_seconds/SECONDS_PER_HOUR} hour && Sign flip on either exchange && Magnitude reduction to {self.magnitude_reduction_threshold*100}% of initial")
@@ -670,15 +686,18 @@ class FundingArbitrageEngine:
             "duration_hours": 0,
             "funding_payments": {
                 "Backpack": 0,
-                "Hyperliquid": 0
+                "Hyperliquid": 0,
+                "Lighter": 0
             },
             "entry_prices": {
                 "Backpack": None,
-                "Hyperliquid": None
+                "Hyperliquid": None,
+                "Lighter": None
             },
             "exit_prices": {
                 "Backpack": None,
-                "Hyperliquid": None
+                "Hyperliquid": None,
+                "Lighter": None
             },
             "funding_pnl": 0,
             "price_pnl": 0,
@@ -738,6 +757,18 @@ class FundingArbitrageEngine:
             except Exception as e:
                 logger.error(f"Error in Hyperliquid callback: {e}", exc_info=True)
         
+        # Lighter callback for funding rate updates
+        async def lt_rate_callback(market_stats):
+            try:
+                # Extract funding rate from market stats
+                funding_rate_str = market_stats.get("current_funding_rate")
+                
+                if funding_rate_str is not None:
+                    funding_rate = float(funding_rate_str)
+                    await funding_rate_queue.put(("Lighter", funding_rate, time.time()))
+            except Exception as e:
+                logger.error(f"Error in Lighter callback: {e}", exc_info=True)
+        
         # Task to move data from thread-safe queue to asyncio queue
         async def process_hl_queue():
             while True:
@@ -767,25 +798,30 @@ class FundingArbitrageEngine:
             # Subscribe to Hyperliquid updates
             hyperliquid.subscribe_to_funding_updates(hl_rate_callback)
             
+            # Subscribe to Lighter updates
+            lighter.subscribe_to_funding_updates(lt_rate_callback)
+            
             # Start the HL queue processor
             hl_processor_task = asyncio.create_task(process_hl_queue())
             tasks.append(hl_processor_task)
             
             # Create polling task
             polling_task = asyncio.create_task(self._poll_funding_rates(
-                backpack, hyperliquid, asset, funding_rate_queue))
+                backpack, hyperliquid, lighter, asset, funding_rate_queue))
             tasks.append(polling_task)
             
             # Process funding rates
             latest_rates = {
                 "Hyperliquid": {"rate": initial_hl_rate, "sign": initial_hl_sign},
-                "Backpack": {"rate": initial_bp_rate, "sign": initial_bp_sign}
+                "Backpack": {"rate": initial_bp_rate, "sign": initial_bp_sign},
+                "Lighter": {"rate": initial_lt_rate, "sign": initial_lt_sign}
             }
             
             # Track funding payments
             last_funding_time = {
                 "Hyperliquid": trade_start_time,
-                "Backpack": trade_start_time
+                "Backpack": trade_start_time,
+                "Lighter": trade_start_time
             }
             
             position_closed = False
@@ -809,7 +845,8 @@ class FundingArbitrageEngine:
                     # Calculate current metrics
                     hl_rate = latest_rates["Hyperliquid"]["rate"]
                     bp_rate = latest_rates["Backpack"]["rate"]
-                    current_max_magnitude = max(abs(hl_rate), abs(bp_rate))
+                    lt_rate = latest_rates["Lighter"]["rate"]
+                    current_max_magnitude = max(abs(hl_rate), abs(bp_rate), abs(lt_rate))
                     elapsed_time = timestamp - trade_start_time
                     
                     # Estimate funding payment if it's a fresh funding update (longer intervals)
@@ -844,7 +881,7 @@ class FundingArbitrageEngine:
                         # Execute exit if conditions met
                         if exit_reason: #exit_reason
                             logger.info(f"EXIT SIGNAL: {exit_reason}")
-                            logger.info(f"Current conditions - HL: {hl_rate:.8f}, BP: {bp_rate:.8f}, Max magnitude: {current_max_magnitude:.8f}")
+                            logger.info(f"Current conditions - HL: {hl_rate:.8f}, BP: {bp_rate:.8f}, LT: {lt_rate:.8f}, Max magnitude: {current_max_magnitude:.8f}")
                             
                             # Record exit time
                             stats["exit_time"] = timestamp
@@ -978,7 +1015,7 @@ class FundingArbitrageEngine:
                         pass
             
     
-    async def _poll_funding_rates(self, backpack, hyperliquid, asset, funding_rate_queue):
+    async def _poll_funding_rates(self, backpack, hyperliquid, lighter, asset, funding_rate_queue):
         """Periodically poll funding rates as a backup."""
         bp_symbol = f"{asset}_USDC_PERP"
         
@@ -997,6 +1034,13 @@ class FundingArbitrageEngine:
                 if asset in hl_rates:
                     rate = hl_rates[asset]["rate"]
                     await funding_rate_queue.put(("Hyperliquid", rate, time.time()))
+            
+                # Get Lighter rates
+                lt_data = lighter.get_funding_rates()
+                lt_rates = lighter.process_funding_rates(lt_data)
+                if asset in lt_rates:
+                    rate = lt_rates[asset]["rate"]
+                    await funding_rate_queue.put(("Lighter", rate, time.time()))
             
             except Exception as e:
                 logger.error(f"Error polling rates: {e}")
@@ -1028,6 +1072,7 @@ class FundingArbitrageEngine:
             # Get exchange references
             backpack = self.exchanges.get("Backpack")
             hyperliquid = self.exchanges.get("Hyperliquid")
+            lighter = self.exchanges.get("Lighter")
             
             # Get position details
             long_exchange = position.get('long_exchange')
@@ -1036,13 +1081,13 @@ class FundingArbitrageEngine:
             # Close positions using the shared helper method
             long_close_success = await self._close_exchange_position(
                 long_exchange,
-                backpack if long_exchange == "Backpack" else hyperliquid,
+                backpack if long_exchange == "Backpack" else (hyperliquid if long_exchange == "Hyperliquid" else lighter),
                 asset
             )
             
             short_close_success = await self._close_exchange_position(
                 short_exchange,
-                backpack if short_exchange == "Backpack" else hyperliquid,
+                backpack if short_exchange == "Backpack" else (hyperliquid if short_exchange == "Hyperliquid" else lighter),
                 asset
             )
             
@@ -1054,6 +1099,7 @@ class FundingArbitrageEngine:
                 # Check both exchanges again to verify positions were closed
                 bp_position_closed = True
                 hl_position_closed = True
+                lt_position_closed = True
                 
                 # Check Backpack positions
                 bp_positions = backpack.get_positions()
@@ -1078,7 +1124,18 @@ class FundingArbitrageEngine:
                             logger.info("Making one final attempt to close Hyperliquid position")
                             hyperliquid.close_position(asset)
                 
-                if bp_position_closed and hl_position_closed:
+                # Check Lighter positions
+                lt_positions = lighter.get_positions()
+                if isinstance(lt_positions, list):
+                    for pos in lt_positions:
+                        if pos.get("symbol") == asset and float(pos.get("size", "0")) != 0:
+                            lt_position_closed = False
+                            logger.warning(f"Lighter position still open: {pos}")
+                            # Try one more time to close
+                            logger.info("Making one final attempt to close Lighter position")
+                            lighter.close_position(asset)
+                
+                if bp_position_closed and hl_position_closed and lt_position_closed:
                     logger.info("All positions successfully closed")
                 else:
                     logger.warning("Some positions may still be open")
@@ -1128,8 +1185,13 @@ class FundingArbitrageEngine:
                 
                 if exchange_name == "Backpack":
                     result = exchange_obj.close_asset_position(asset_name)
-                else:  # Hyperliquid
+                elif exchange_name == "Hyperliquid":
                     result = exchange_obj.close_position(asset_name)
+                elif exchange_name == "Lighter":
+                    result = exchange_obj.close_position(asset_name)
+                else:
+                    logger.error(f"Unknown exchange: {exchange_name}")
+                    return False
                 
                 # Check if successful
                 if isinstance(result, dict) and "error" in result:
@@ -1157,7 +1219,7 @@ class FundingArbitrageEngine:
                             except Exception as e:
                                 logger.error(f"Error getting Backpack exit price: {e}")
                     
-                    else:  # Hyperliquid
+                    elif exchange_name == "Hyperliquid":
                         # Capture exit price if available
                         if isinstance(result, dict) and "px" in result:
                             stats_dict["exit_prices"][exchange_name] = float(result["px"])
@@ -1169,6 +1231,21 @@ class FundingArbitrageEngine:
                                     stats_dict["exit_prices"][exchange_name] = float(market_data["markPx"])
                             except Exception as e:
                                 logger.error(f"Error getting Hyperliquid exit price: {e}")
+                    
+                    elif exchange_name == "Lighter":
+                        # Capture exit price if available
+                        if isinstance(result, dict) and "price" in result:
+                            stats_dict["exit_prices"][exchange_name] = float(result["price"])
+                        else:
+                            # Try to get current market price from funding rates
+                            try:
+                                funding_rates = exchange_obj.get_funding_rates()
+                                if asset_name in funding_rates:
+                                    # Use mark price if available
+                                    mark_price = funding_rates[asset_name].get("mark_price", 0)
+                                    stats_dict["exit_prices"][exchange_name] = float(mark_price)
+                            except Exception as e:
+                                logger.error(f"Error getting Lighter exit price: {e}")
                 
                 break  # Success, exit retry loop
                 

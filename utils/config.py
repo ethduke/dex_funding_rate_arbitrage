@@ -45,6 +45,15 @@ class Config:
         if not self.HYPERLIQUID_API_PRIVATE_KEY:
             raise ValueError("Hyperliquid private key not found in environment variables")
         
+        # Lighter credentials
+        self.LIGHTER_PRIVATE_KEY = os.environ.get("LIGHTER_PRIVATE_KEY")
+        if not self.LIGHTER_PRIVATE_KEY:
+            raise ValueError("Lighter private key not found in environment variables")
+            
+        self.LIGHTER_API_URL = config.get("LIGHTER_API_URL", "https://mainnet.zklighter.elliot.ai/")
+        self.LIGHTER_WS_URL = config.get("LIGHTER_WS_URL", "wss://mainnet.zklighter.elliot.ai/stream")
+        self.LIGHTER_API_KEY_INDEX = int(config.get("LIGHTER_API_KEY_INDEX", 1))
+
         # Arbitrage Engine Configuration
         self.POSITION_SIZE = float(config.get("POSITION_SIZE"))
         self.MIN_RATE_DIFFERENCE = float(config.get("MIN_RATE_DIFFERENCE"))
@@ -52,6 +61,7 @@ class Config:
         self.MAGNITUDE_REDUCTION_THRESHOLD = float(config.get("MAGNITUDE_REDUCTION_THRESHOLD"))
         self.CHECK_INTERVAL_MINUTES = int(config.get("CHECK_INTERVAL_MINUTES"))
         self.MAX_CONCURRENT_POSITIONS = int(config.get("MAX_CONCURRENT_POSITIONS"))
+
     def get(self, key: str, default: Any = None) -> Any:
         """
         Get configuration value by key name.
