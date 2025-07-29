@@ -14,6 +14,11 @@ class HyperliquidExchange(BaseExchange):
     def __init__(self):
         """Initialize Hyperliquid client using the official SDK."""
 
+        # Configure logging for Hyperliquid SDK
+        logging.getLogger("hyperliquid").setLevel(logging.WARNING)
+        logging.getLogger("websocket").setLevel(logging.WARNING)
+        logging.getLogger("websockets").setLevel(logging.WARNING)
+        
         self.base_url = CONFIG.get("HYPERLIQUID_API_URL")
         
         private_key = CONFIG.get("HYPERLIQUID_API_PRIVATE_KEY")
@@ -132,8 +137,16 @@ class HyperliquidExchange(BaseExchange):
             if meta_response.status_code == 200:
                 all_prices = meta_response.json()
                 price = float(all_prices.get(asset))
-                token_amount = round(usd_amount / price, self.get_sz_decimals(asset))
-                logger.debug(f"Converting ${usd_amount} to {token_amount} {asset} at price ${price}")
+                # Convert USD amount to token amount
+                token_amount = usd_amount / price
+                
+                # Get proper decimal precision for this asset
+                sz_decimals = self.get_sz_decimals(asset)
+                
+                # Round to the appropriate decimal places to avoid precision errors
+                import math
+                token_amount = math.floor(token_amount * (10 ** sz_decimals)) / (10 ** sz_decimals)
+                
                 return token_amount
         except Exception as e:
             logger.error(f"Error in fallback price lookup: {str(e)}")
@@ -162,6 +175,16 @@ class HyperliquidExchange(BaseExchange):
             
             if size is None:
                 return {"status": "error", "message": "Either quantity or quote_quantity must be provided"}
+            
+            # Handle precision errors by rounding size to appropriate decimals
+            if size > 0:
+                sz_decimals = self.get_sz_decimals(symbol)
+                import math
+                size = math.floor(size * (10 ** sz_decimals)) / (10 ** sz_decimals)
+                
+                # If size becomes 0 after rounding, return error
+                if size == 0:
+                    return {"status": "error", "message": f"Size too small for {symbol} after precision adjustment"}
             
             slippage = 0.01  # 1% slippage tolerance
             order_result = self.exchange.market_open(
@@ -249,6 +272,8 @@ class HyperliquidExchange(BaseExchange):
                 callback(data)
                 
         subscription = {"type": "userFundings", "user": self.address}
+        # Configure logging for this subscription
+        logging.getLogger("hyperliquid").setLevel(logging.WARNING)
         return self.info.subscribe(subscription, funding_callback)
     
     def process_funding_rates(self, hl_funding: List) -> Dict[str, Dict]:

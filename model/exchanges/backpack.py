@@ -66,8 +66,6 @@ class BackpackExchange(BaseExchange):
         message += f"&timestamp={timestamp}&window={window}"
         
         # Log the exact message being signed for debugging
-        logger.debug(f"Message to sign: {message}")
-        
         signature = signing_key.sign(message.encode())
         
         # Return headers
@@ -138,7 +136,6 @@ class BackpackExchange(BaseExchange):
             # Try to parse JSON, handle decode errors explicitly
             try:
                 data = response.json()
-                logger.debug(f"Mark prices response: {data}")
                 return data
             except json.JSONDecodeError as json_err:
                 logger.error(f"JSON decode error: {json_err}, response text: {response.text}")
@@ -236,7 +233,6 @@ class BackpackExchange(BaseExchange):
         client_id: Optional[int] = None
     ) -> Dict:
         """Close an existing position."""
-        logger.debug(f"Attempting to close position for {symbol}, position_size={position_size}")
         
         if position_size is None:
             # Get positions to find the size
@@ -246,7 +242,6 @@ class BackpackExchange(BaseExchange):
                 logger.error(f"Failed to get positions: {positions}")
                 return {"error": "Failed to get positions", "details": positions}
                 
-            logger.debug(f"Current positions: {positions}")
             position_found = False
             
             for position in positions:
@@ -256,16 +251,13 @@ class BackpackExchange(BaseExchange):
                     # Check multiple possible fields for position size
                     if "netQuantity" in position:
                         position_size = float(position.get("netQuantity", "0"))
-                        logger.debug(f"Using netQuantity field for position size: {position_size}")
                     elif "positionSize" in position:
                         position_size = float(position.get("positionSize", "0"))
-                        logger.debug(f"Using positionSize field for position size: {position_size}")
                     else:
                         # Log all available keys to help diagnose
                         logger.warning(f"Could not find size field. Available keys: {list(position.keys())}")
                         position_size = 0
                     
-                    logger.debug(f"Found position for {symbol} with size {position_size}")
                     break
             
             if not position_found:
@@ -281,8 +273,6 @@ class BackpackExchange(BaseExchange):
         
         # Use absolute value for quantity
         quantity = abs(position_size)
-        
-        logger.debug(f"Placing order to close position: symbol={symbol}, side={side}, quantity={quantity}")
         
         return self.place_market_order(
             symbol=symbol,

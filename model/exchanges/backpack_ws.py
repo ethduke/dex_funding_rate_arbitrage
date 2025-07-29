@@ -43,23 +43,17 @@ class BackpackWebSocketClient:
     async def connect(self):
         """Connects to the WebSocket server and starts listening."""
         if self.websocket and self.websocket.open:
-            logger.debug("WebSocket already connected.")
             return
 
-        logger.debug(f"Attempting to connect to WebSocket: {self.ws_url}")
         try:
-            # Added debug logging around connect
-            logger.debug("Calling websockets.connect...")
             self.websocket = await websockets.connect(self.ws_url, ping_interval=60, ping_timeout=120)
-            logger.debug("websockets.connect successful.")
-            logger.debug("WebSocket connection established.")
             self._stop_event.clear()
             self._connection_task = asyncio.create_task(self._listen())
             # Resubscribe to any stored subscriptions
             await self._resubscribe()
             await self._process_pending_subscriptions()
         except (websockets.exceptions.ConnectionClosedError, websockets.exceptions.InvalidHandshake) as e:
-            logger.error(f"WebSocket connection failed: {e}", exc_info=True) # Log traceback
+            logger.error(f"WebSocket connection failed: {e}", exc_info=True)
             self.websocket = None
         except RuntimeError as e:
             if "can't register atexit after shutdown" in str(e):
@@ -70,34 +64,24 @@ class BackpackWebSocketClient:
         except Exception as e:
             logger.error(f"WebSocket connection failed: {e}", exc_info=True)
             self.websocket = None
-            # Consider adding reconnection logic here
-            # e.g., await asyncio.sleep(5); await self.connect()
 
     async def disconnect(self):
         """Disconnects the WebSocket connection."""
-        logger.debug("Disconnect requested.")
         if self._connection_task:
-            logger.debug("Cancelling listener task...")
             self._stop_event.set()
             self._connection_task.cancel()
             try:
                 await self._connection_task
             except asyncio.CancelledError:
-                logger.debug("WebSocket listener task cancelled.")
+                pass
             self._connection_task = None
-            logger.debug("Listener task cancelled.")
 
         if self.websocket and self.websocket.open:
-            logger.debug("Closing WebSocket connection.")
             try:
                 await self.websocket.close()
-                logger.debug("WebSocket connection closed.")
             except Exception as e:
                 logger.error(f"Error closing websocket: {e}", exc_info=True)
-        else:
-            logger.debug("Websocket already closed or not initialized.")
         self.websocket = None
-        logger.debug("Disconnect process complete.")
 
     def is_connected(self) -> bool:
         """Check if the WebSocket connection is active.

@@ -35,6 +35,35 @@ def setup_logger(name="funding_arb", level=logging.INFO):
     # Prevent propagation to parent loggers to avoid duplicate logs
     logger.propagate = False
     
+    # Reduce websockets library logging to WARNING level
+    websockets_logger = logging.getLogger("websockets")
+    websockets_logger.setLevel(logging.WARNING)
+    
+    # Reduce urllib3 logging to WARNING level
+    urllib3_logger = logging.getLogger("urllib3")
+    urllib3_logger.setLevel(logging.WARNING)
+    
+    # Reduce asyncio logging to WARNING level
+    asyncio_logger = logging.getLogger("asyncio")
+    asyncio_logger.setLevel(logging.WARNING)
+    
+    # Reduce websocket library logging to WARNING level
+    websocket_logger = logging.getLogger("websocket")
+    websocket_logger.setLevel(logging.WARNING)
+    
+    # Reduce root logger debug output
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.WARNING)
+    
+    # Reduce Hyperliquid SDK logging
+    hyperliquid_logger = logging.getLogger("hyperliquid")
+    hyperliquid_logger.setLevel(logging.WARNING)
+    
+    # Reduce any other potential debug sources
+    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+    logging.getLogger("urllib3.connection").setLevel(logging.WARNING)
+    
     # Default formatter for file logs
     file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     

@@ -48,10 +48,8 @@ class LighterWebSocketClient:
     async def connect(self):
         """Connect to the WebSocket server and start listening."""
         if self.ws and self.ws.open:
-            logger.debug("WebSocket already connected.")
             return
 
-        logger.debug(f"Attempting to connect to WebSocket: {self.base_url}")
         try:
             self.ws = await connect_async(self.base_url)
             self._connected = True
@@ -70,32 +68,23 @@ class LighterWebSocketClient:
 
     async def disconnect(self):
         """Disconnect the WebSocket connection."""
-        logger.debug("Disconnect requested.")
-        
         if self._task:
-            logger.debug("Cancelling listener task...")
             self._stop_event.set()
             self._task.cancel()
             try:
                 await self._task
             except asyncio.CancelledError:
-                logger.debug("WebSocket listener task cancelled.")
+                pass
             self._task = None
-            logger.debug("Listener task cancelled.")
 
         if self.ws and self.ws.open:
-            logger.debug("Closing WebSocket connection.")
             try:
                 await self.ws.close()
-                logger.debug("WebSocket connection closed.")
             except Exception as e:
                 logger.error(f"Error closing websocket: {e}")
-        else:
-            logger.debug("Websocket already closed or not initialized.")
         
         self.ws = None
         self._connected = False
-        logger.debug("Disconnect process complete.")
 
     async def _subscribe_to_channels(self):
         """Subscribe to all channels"""
@@ -119,25 +108,21 @@ class LighterWebSocketClient:
         await self.ws.send(
             json.dumps({"type": "subscribe", "channel": "market_stats/all"})
         )
-        
-        logger.debug("Subscribed to all channels")
 
     async def _listen(self):
         """Listen for messages and handle them."""
-        logger.debug("WebSocket listener task started.")
         try:
             while not self._stop_event.is_set():
                 try:
                     message = await self.ws.recv()
                     await self.on_message_async(self.ws, message)
                 except asyncio.CancelledError:
-                    logger.debug("WebSocket listener task cancelled.")
                     break
                 except Exception as e:
                     logger.error(f"Error in WebSocket listener: {e}")
                     await asyncio.sleep(1)  # Avoid tight loop on errors
         finally:
-            logger.debug("WebSocket listener task stopped.")
+            pass
 
     async def on_message_async(self, ws, message):
         """Handle incoming WebSocket messages"""
@@ -243,9 +228,6 @@ class LighterWebSocketClient:
                 index_price = float(market_stats.get("index_price", 0))
                 funding_timestamp = market_stats.get("funding_timestamp", 0)
                 
-                # Only log funding rate changes, reduce verbosity
-                logger.debug(f"📊 Market Stats [{symbol}]: Funding Rate={funding_rate}, Mark Price={mark_price}, Index Price={index_price}")
-                
                 # Store the latest market stats
                 self._market_stats[market_id] = {
                     "symbol": symbol,
@@ -264,18 +246,18 @@ class LighterWebSocketClient:
 
     def handle_unhandled_message(self, message):
         """Handle unhandled messages"""
-        # Only log unhandled messages at debug level to reduce noise
-        logger.debug(f"Unhandled message type: {message.get('type', 'unknown')}")
+        # Only log at debug level to reduce noise
+        pass
 
     def _default_order_book_handler(self, market_id, order_book):
         """Default order book update handler"""
         # Reduced logging - only log significant updates
-        logger.debug(f"Order book update for market {market_id}")
+        pass
 
     def _default_account_handler(self, account_id, account):
         """Default account update handler"""
         # Reduced logging - only log significant updates
-        logger.debug(f"Account update for account {account_id}")
+        pass
 
     def _default_market_stats_handler(self, market_stats: Dict):
         """Default market stats handler"""

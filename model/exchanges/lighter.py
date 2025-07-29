@@ -321,10 +321,10 @@ class LighterExchange(BaseExchange):
             logger.warning("WebSocket subscription requested but WebSocket is not enabled. Set use_ws=True when initializing.")
             return None
             
-        # Implementation for funding rate subscription via WebSocket
-        # This would need to be implemented based on Lighter's WebSocket API
-        logger.info("Funding rate subscription not yet implemented for Lighter")
-        return None
+        # Set the callback for market stats updates
+        self.ws_client.on_market_stats_update = callback
+        logger.info("Lighter funding rate subscription configured")
+        return True
 
     async def get_account(self):
         """Get account information"""

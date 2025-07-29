@@ -255,18 +255,19 @@ class FundingArbitrageEngine:
                 exchange_rates = {}
                 logger.debug("Fetching funding rates from exchanges...")
                 
-                # Get rates from all exchanges
+                # Get funding rates from each exchange
                 for exchange_name, exchange in self.exchanges.items():
-                    logger.debug(f"Getting funding rates from {exchange_name}...")
                     try:
-                        data = exchange.get_funding_rates()
-                        logger.debug(f"Successfully got funding rates from {exchange_name}")
+                        # Handle async vs sync get_funding_rates methods
+                        if exchange_name == "Lighter":
+                            data = await exchange.get_funding_rates()
+                        else:
+                            data = exchange.get_funding_rates()
                         
                         # Process rates using exchange's method 
                         # (all exchange classes must implement process_funding_rates)
                         exchange_rates[exchange_name] = exchange.process_funding_rates(data)
                         
-                        logger.debug(f"Processed {len(exchange_rates[exchange_name])} assets for {exchange_name}")
                     except Exception as e:
                         logger.error(f"Error getting funding rates from {exchange_name}: {str(e)}", exc_info=True)
                         
@@ -277,7 +278,6 @@ class FundingArbitrageEngine:
                             await self.stop()
                 
                 # Find arbitrage opportunities
-                logger.debug("Finding arbitrage opportunities...")
                 opportunities = self.find_arbitrage_opportunities(exchange_rates, min_diff=self.min_rate_difference)
                 
                 # Calculate profit based on position size
@@ -304,14 +304,10 @@ class FundingArbitrageEngine:
                     logger.info("No significant arbitrage opportunities found")
                 
                 # Check monitoring tasks for active positions
-                logger.debug("Managing active position monitors...")
                 await self._manage_active_monitors()
-                logger.debug("Active monitor management complete")
                 
                 # Enter new positions if not at max capacity
-                logger.debug("Checking for new position opportunities...")
                 await self._enter_new_positions(opportunities)
-                logger.debug("New position check complete")
                 
                 logger.debug("Opportunity check cycle completed successfully")
                 
@@ -320,10 +316,8 @@ class FundingArbitrageEngine:
             
     async def _manage_active_monitors(self):
         """Manage active position monitors."""
-        logger.debug("Starting active monitors management...")
         # Nothing to do if no active positions
         if not self.active_positions:
-            logger.debug("No active positions to manage")
             return
             
         # Check for completed monitors and process results
@@ -357,10 +351,7 @@ class FundingArbitrageEngine:
                 except Exception as e:
                     logger.error(f"Error processing completed monitor for {asset}: {str(e)}", exc_info=True)
                     # Remove problematic position from tracking
-                    del self.active_positions[asset]
                     
-        logger.info("Active monitor management complete")
-            
     async def _enter_new_positions(self, opportunities: List[Dict]):
         """Enter new arbitrage positions based on opportunities."""
         logger.info("Checking for new positions to enter...")
@@ -1036,7 +1027,7 @@ class FundingArbitrageEngine:
                     await funding_rate_queue.put(("Hyperliquid", rate, time.time()))
             
                 # Get Lighter rates
-                lt_data = lighter.get_funding_rates()
+                lt_data = await lighter.get_funding_rates()
                 lt_rates = lighter.process_funding_rates(lt_data)
                 if asset in lt_rates:
                     rate = lt_rates[asset]["rate"]
@@ -1239,7 +1230,7 @@ class FundingArbitrageEngine:
                         else:
                             # Try to get current market price from funding rates
                             try:
-                                funding_rates = exchange_obj.get_funding_rates()
+                                funding_rates = await exchange_obj.get_funding_rates()
                                 if asset_name in funding_rates:
                                     # Use mark price if available
                                     mark_price = funding_rates[asset_name].get("mark_price", 0)
