@@ -445,16 +445,25 @@ class FundingArbitrageEngine:
         long_exchange = opportunity['long_exchange']
         short_exchange = opportunity['short_exchange']
         
-        # Execute the trades
+                    # Execute the trades
         try:
             backpack = self.exchanges.get("Backpack")
             hyperliquid = self.exchanges.get("Hyperliquid")
+            lighter = self.exchanges.get("Lighter")
             
             # Check available balances on both exchanges first
             logger.info("Checking available balances on both exchanges...")
                         
             # Detail what we're going to do
             logger.info(f"TRADE PLAN: LONG on {long_exchange}, SHORT on {short_exchange} for {asset}")
+            
+            # Check if Lighter has order placement capability
+            if "Lighter" in [long_exchange, short_exchange]:
+                if not lighter or not hasattr(lighter, 'signer_client') or not lighter.signer_client:
+                    logger.warning("Lighter order placement not available (SignerClient not initialized) - skipping this opportunity")
+                    return None
+                else:
+                    logger.info("Lighter order placement available - will attempt orders")
             
             long_result = None
             short_result = None
@@ -531,6 +540,82 @@ class FundingArbitrageEngine:
                     try:
                         logger.debug(f"Closing LONG position on Hyperliquid for {asset} after SHORT position failure")
                         hyperliquid.close_position(asset)
+                    except Exception as close_e:
+                        logger.error(f"Failed to close LONG position after SHORT position failure: {str(close_e)}", exc_info=True)
+                    return None
+            elif long_exchange == "Lighter":
+                logger.info(f"Opening LONG position on Lighter for {asset} with size ${position_size_usd}")
+                try:
+                    long_result = await lighter.open_long(asset, position_size_usd)
+                    long_success = "error" not in long_result
+                    logger.debug(f"Lighter LONG result: {long_result}")
+                    if not long_success:
+                        logger.error(f"Failed to open LONG position on Lighter: {long_result.get('error', 'Unknown error')}")
+                        logger.warning("Lighter order placement failed - this is expected without valid credentials")
+                        return None
+                except Exception as e:
+                    logger.error(f"Failed to open LONG position on Lighter: {str(e)}", exc_info=True)
+                    logger.warning("Lighter order placement failed - this is expected without valid credentials")
+                    return None
+                
+                logger.info(f"Opening SHORT position on Backpack for {asset} with size ${position_size_usd}")
+                try:
+                    short_result = backpack.open_short(asset, position_size_usd)
+                    short_success = "status" not in short_result or short_result["status"] != "error"
+                    logger.debug(f"Backpack SHORT result: {short_result}")
+                    if not short_success:
+                        logger.error(f"Failed to open SHORT position on Backpack: {short_result.get('message', 'Unknown error')}")
+                        # Try to close the long position we just opened
+                        try:
+                            logger.debug(f"Closing LONG position on Lighter for {asset} after SHORT position failure")
+                            await lighter.close_position(asset)
+                        except Exception as close_e:
+                            logger.error(f"Failed to close LONG position after SHORT position failure: {str(close_e)}", exc_info=True)
+                        return None
+                except Exception as e:
+                    logger.error(f"Failed to open SHORT position on Backpack: {str(e)}", exc_info=True)
+                    # Try to close the long position we just opened
+                    try:
+                        logger.debug(f"Closing LONG position on Lighter for {asset} after SHORT position failure")
+                        await lighter.close_position(asset)
+                    except Exception as close_e:
+                        logger.error(f"Failed to close LONG position after SHORT position failure: {str(close_e)}", exc_info=True)
+                    return None
+            elif long_exchange == "Backpack" and short_exchange == "Lighter":
+                logger.info(f"Opening LONG position on Backpack for {asset} with size ${position_size_usd}")
+                try:
+                    long_result = backpack.open_long(asset, position_size_usd)
+                    long_success = "status" not in long_result or long_result["status"] != "error"
+                    logger.debug(f"Backpack LONG result: {long_result}")
+                    if not long_success:
+                        logger.error(f"Failed to open LONG position on Backpack: {long_result.get('message', 'Unknown error')}")
+                        return None
+                except Exception as e:
+                    logger.error(f"Failed to open LONG position on Backpack: {str(e)}", exc_info=True)
+                    return None
+                
+                logger.info(f"Opening SHORT position on Lighter for {asset} with size ${position_size_usd}")
+                try:
+                    short_result = await lighter.open_short(asset, position_size_usd)
+                    short_success = "error" not in short_result
+                    logger.debug(f"Lighter SHORT result: {short_result}")
+                    if not short_success:
+                        logger.error(f"Failed to open SHORT position on Lighter: {short_result.get('error', 'Unknown error')}")
+                        logger.warning("Lighter order placement failed - this is expected without valid credentials")
+                        # Try to close the long position we just opened
+                        try:
+                            logger.debug(f"Closing LONG position on Backpack for {asset} after SHORT position failure")
+                            backpack.close_asset_position(asset)
+                        except Exception as close_e:
+                            logger.error(f"Failed to close LONG position after SHORT position failure: {str(close_e)}", exc_info=True)
+                        return None
+                except Exception as e:
+                    logger.error(f"Failed to open SHORT position on Lighter: {str(e)}", exc_info=True)
+                    logger.warning("Lighter order placement failed - this is expected without valid credentials")
+                    # Try to close the long position we just opened
+                    try:
+                        logger.debug(f"Closing LONG position on Backpack for {asset} after SHORT position failure")
+                        backpack.close_asset_position(asset)
                     except Exception as close_e:
                         logger.error(f"Failed to close LONG position after SHORT position failure: {str(close_e)}", exc_info=True)
                     return None

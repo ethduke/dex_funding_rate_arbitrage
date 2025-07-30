@@ -51,7 +51,13 @@ class LighterWebSocketClient:
             return
 
         try:
-            self.ws = await connect_async(self.base_url)
+            # Connect with proper ping/pong settings
+            self.ws = await connect_async(
+                self.base_url,
+                ping_interval=30,  # Send ping every 30 seconds
+                ping_timeout=10,   # Wait 10 seconds for pong
+                close_timeout=10   # Wait 10 seconds for close
+            )
             self._connected = True
             logger.info("✅ Lighter WebSocket connected successfully")
             

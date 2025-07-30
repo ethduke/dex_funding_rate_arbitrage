@@ -153,7 +153,7 @@ async def test_lighter_websocket_market_stats():
         ws_task = asyncio.create_task(client.run_async())
         
         # Wait a bit for connection
-        await asyncio.sleep(3)
+        await asyncio.sleep(10)
         
         print("✅ WebSocket client started successfully!")
         print("📊 Receiving order book, account, and market stats updates...")
@@ -207,13 +207,13 @@ async def account_apis(client: lighter.ApiClient):
     account_instance = lighter.AccountApi(client)
     
     # Example values - you'll need to replace these with real values
-    L1_ADDRESS = "0x9ed80eDA7F55054Db9FB5282451688f26bB374c1"  # Example address
+    # L1_ADDRESS = "YOUR_L1_ADDRESS_HERE"  # Replace with your actual L1 address
     ACCOUNT_INDEX = 1  # Example account index
     
     try:
-        await print_api(account_instance.account, by="l1_address", value=L1_ADDRESS)
+        # await print_api(account_instance.account, by="l1_address", value=L1_ADDRESS)
         await print_api(account_instance.account, by="index", value=str(ACCOUNT_INDEX))
-        await print_api(account_instance.accounts_by_l1_address, l1_address=L1_ADDRESS)
+        # await print_api(account_instance.accounts_by_l1_address, l1_address=L1_ADDRESS)
         await print_api(account_instance.apikeys, account_index=ACCOUNT_INDEX, api_key_index=1)
         await print_api(account_instance.public_pools, filter="all", limit=1, index=0)
         

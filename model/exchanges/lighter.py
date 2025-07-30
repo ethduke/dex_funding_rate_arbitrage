@@ -4,6 +4,7 @@ from model.exchanges.lighter_ws import LighterWebSocketClient
 from typing import Dict, List, Optional, Any, Callable, Tuple
 from utils.config import CONFIG
 from utils.logger import setup_logger
+from lighter import SignerClient
 
 logger = setup_logger(__name__)
 
@@ -70,45 +71,17 @@ class LighterExchange(BaseExchange):
             # Get configuration
             BASE_URL = CONFIG.LIGHTER_API_URL
             API_KEY_INDEX = CONFIG.LIGHTER_API_KEY_INDEX
+            ACCOUNT_INDEX = CONFIG.LIGHTER_ACCOUNT_INDEX
             
             logger.info(f"Initializing Lighter for mainnet: {BASE_URL}")
             logger.info(f"API Key Index: {API_KEY_INDEX}")
+            logger.info(f"Account Index: {ACCOUNT_INDEX}")
 
-            # Get account information using the account API
-            # First, get account details to find the L1 address
-            account_response = await self.account_api.account(by="index", value="1")  # Start with index 1
-            
-            if not hasattr(account_response, 'accounts') or not account_response.accounts:
-                raise Exception("No account found with index 1")
-            
-            # Get the L1 address from the first account
-            account = account_response.accounts[0]
-            l1_address = account.l1_address
-            
-            logger.info(f"Found L1 address: {l1_address}")
-            
-            # Now get account by L1 address to get the correct account index
-            try:
-                response = await self.account_api.accounts_by_l1_address(l1_address=l1_address)
-            except lighter.ApiException as e:
-                if e.data.message == "account not found":
-                    logger.error(f"Account not found for {l1_address}")
-                    raise Exception(f"Account not found for {l1_address}. Please ensure your account exists on Lighter mainnet.")
-                else:
-                    raise e
+            # Use the account index from config
+            self.account_index = ACCOUNT_INDEX
+            logger.info(f"Using account index: {self.account_index}")
 
-            if len(response.sub_accounts) > 1:
-                logger.warning(f"Found multiple account indexes: {len(response.sub_accounts)}")
-                for sub_account in response.sub_accounts:
-                    logger.info(f"Account index: {sub_account.index}")
-                # Use the first account index instead of raising an exception
-                self.account_index = response.sub_accounts[0].index
-                logger.info(f"Using first account index: {self.account_index}")
-            else:
-                self.account_index = response.sub_accounts[0].index
-                logger.info(f"Account index: {self.account_index}")
-
-            # Get account details using the correct account index
+            # Get account details using the account index
             account_details = await self.account_api.account(by="index", value=str(self.account_index))
             logger.info(f"Account details retrieved successfully")
             
@@ -122,6 +95,27 @@ class LighterExchange(BaseExchange):
             
             # Initialize TransactionApi for future use
             self.transaction_api = lighter.TransactionApi(self.api_client)
+            
+            # Initialize SignerClient for order placement
+            # Note: This requires private key configuration
+            try:
+                # Get private key from environment (you'll need to set this)
+                private_key = CONFIG.get('LIGHTER_PRIVATE_KEY')
+                if private_key:
+                    # Initialize SignerClient with proper parameters
+                    self.signer_client = SignerClient(
+                        url=CONFIG.LIGHTER_API_URL,
+                        private_key=private_key,
+                        account_index=self.account_index,
+                        api_key_index=CONFIG.LIGHTER_API_KEY_INDEX
+                    )
+                    logger.info("✅ Lighter SignerClient initialized for order placement")
+                else:
+                    logger.warning("LIGHTER_PRIVATE_KEY not configured - order placement will be disabled")
+                    self.signer_client = None
+            except Exception as e:
+                logger.warning(f"Could not initialize SignerClient: {e} - order placement will be disabled")
+                self.signer_client = None
             
             logger.info("✅ Lighter initialization successful!")
 
@@ -233,37 +227,49 @@ class LighterExchange(BaseExchange):
             
             if not self.signer_client:
                 return {"error": "SignerClient not initialized. Cannot place orders."}
-                
-            # Get next nonce
-            next_nonce = await self.transaction_api.next_nonce(
-                account_index=self.account_index,
-                api_key_index=CONFIG.LIGHTER_API_KEY_INDEX
-            )
             
             # Convert symbol to market_id
             market_id = await self._get_market_id(symbol)
             
-            # Convert side to Lighter format
-            order_side = lighter.ORDER_SIDE_BUY if side.upper() == "BUY" else lighter.ORDER_SIDE_SELL
+            # Determine the base amount
+            if quote_quantity is not None:
+                # If quote_quantity is provided, we need to convert USD to base amount
+                # For now, we'll use a simple conversion (this should be improved with real price)
+                # Assuming BTC price is around $50,000 for calculation
+                estimated_price = 50000  # This should be fetched from order book
+                base_amount = int((quote_quantity / estimated_price) * 1e6)  # Convert to micro units
+            elif quantity is not None:
+                # If quantity is provided, convert to base amount
+                base_amount = int(quantity * 1e6)  # Convert to micro units
+            else:
+                return {"error": "Either quantity or quote_quantity must be provided"}
             
-            # Convert quantity to base_amount (smallest unit)
-            base_amount = int(quantity * 1e6) if quantity else 0  # Adjust precision as needed
+            # Ensure base_amount is at least 1 (minimum order size)
+            if base_amount < 1:
+                base_amount = 1
             
-            # Sign the order
-            signed_tx = self.signer_client.sign_create_order(
-                market_id=market_id,
-                side=order_side,
-                order_type=lighter.ORDER_TYPE_MARKET,
-                time_in_force=lighter.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL,
-                base_amount=base_amount,
-                price=0,  # Market order doesn't need price
+            # Convert side to is_ask format
+            is_ask = side.upper() == "SELL"
+            
+            # Get current price for avg_execution_price (you might want to get this from order book)
+            # For now, using a placeholder price
+            avg_execution_price = 50000000  # $50,000 in micro units
+            
+            # Create market order using the correct method
+            tx = await self.signer_client.create_order(
+                market_index=market_id,
                 client_order_index=self._get_next_client_order_index(),
-                nonce=next_nonce
+                base_amount=base_amount,
+                price=avg_execution_price,
+                is_ask=is_ask,
+                order_type=lighter.SignerClient.ORDER_TYPE_MARKET,
+                time_in_force=lighter.SignerClient.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL,
+                reduce_only=reduce_only,
+                order_expiry=lighter.SignerClient.DEFAULT_IOC_EXPIRY
             )
             
-            # Send the transaction
-            response = await self.transaction_api.send_tx(signed_tx)
-            return response
+            logger.info(f"Lighter market order created: {tx}")
+            return {"status": "success", "tx": tx}
             
         except Exception as e:
             logger.error(f"Failed to place market order: {e}")
@@ -296,7 +302,8 @@ class LighterExchange(BaseExchange):
             return await self.place_market_order(
                 symbol=symbol,
                 side=side,
-                quantity=quantity
+                quantity=quantity,
+                reduce_only=True
             )
             
         except Exception as e:

@@ -47,12 +47,12 @@ class Config:
         
         # Lighter credentials
         self.LIGHTER_PRIVATE_KEY = os.environ.get("LIGHTER_PRIVATE_KEY")
-        if not self.LIGHTER_PRIVATE_KEY:
-            raise ValueError("Lighter private key not found in environment variables")
+        # Note: Lighter private key is optional - order placement will be disabled if not provided
             
         self.LIGHTER_API_URL = config.get("LIGHTER_API_URL", "https://mainnet.zklighter.elliot.ai/")
         self.LIGHTER_WS_URL = config.get("LIGHTER_WS_URL", "wss://mainnet.zklighter.elliot.ai/stream")
-        self.LIGHTER_API_KEY_INDEX = int(config.get("LIGHTER_API_KEY_INDEX", 1))
+        self.LIGHTER_API_KEY_INDEX = int(config.get("LIGHTER_API_KEY_INDEX", 2))
+        self.LIGHTER_ACCOUNT_INDEX = int(config.get("LIGHTER_ACCOUNT_INDEX", 5725))
 
         # Arbitrage Engine Configuration
         self.POSITION_SIZE = float(config.get("POSITION_SIZE"))
