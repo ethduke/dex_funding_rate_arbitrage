@@ -42,11 +42,12 @@ class BackpackWebSocketClient:
 
     async def connect(self):
         """Connects to the WebSocket server and starts listening."""
-        if self.websocket and self.websocket.open:
+        if self.websocket and self.websocket.state == 1:
             return
 
         try:
             self.websocket = await websockets.connect(self.ws_url, ping_interval=60, ping_timeout=120)
+            logger.info("WebSocket connection established successfully")
             self._stop_event.clear()
             self._connection_task = asyncio.create_task(self._listen())
             # Resubscribe to any stored subscriptions
@@ -76,7 +77,7 @@ class BackpackWebSocketClient:
                 pass
             self._connection_task = None
 
-        if self.websocket and self.websocket.open:
+        if self.websocket and self.websocket.state == 1:
             try:
                 await self.websocket.close()
             except Exception as e:
@@ -89,11 +90,11 @@ class BackpackWebSocketClient:
         Returns:
             bool: True if the connection is open, False otherwise
         """
-        return self.websocket is not None and self.websocket.open
+        return self.websocket is not None and self.websocket.state == 1
 
     async def subscribe(self, stream_name: str, handler: Callable):
         """Subscribes to a WebSocket stream."""
-        if not self.websocket or not self.websocket.open:
+        if not self.websocket or not self.websocket.state == 1:
             logger.warning(f"WebSocket not connected. Queuing subscription for: {stream_name}")
             # Store subscription intent if not connected
             self._pending_subscriptions[stream_name] = handler
@@ -146,7 +147,7 @@ class BackpackWebSocketClient:
             logger.debug(f"Removing queued subscription for {stream_name}")
             del self._pending_subscriptions[stream_name]
 
-        if not self.websocket or not self.websocket.open:
+        if not self.websocket or not self.websocket.state == 1:
             logger.warning("WebSocket not connected. Cannot unsubscribe immediately.")
             if stream_name in self.subscriptions:
                 del self.subscriptions[stream_name] # Remove from active subscriptions
@@ -174,7 +175,7 @@ class BackpackWebSocketClient:
 
     async def _resubscribe(self):
         """Resubscribes to all previously active subscriptions."""
-        if not self.websocket or not self.websocket.open:
+        if not self.websocket or not self.websocket.state == 1:
             logger.warning("Cannot resubscribe, WebSocket not connected.")
             return
 
@@ -194,7 +195,7 @@ class BackpackWebSocketClient:
 
     async def _process_pending_subscriptions(self):
         """Processes subscriptions requested before the connection was established."""
-        if not self.websocket or not self.websocket.open:
+        if not self.websocket or not self.websocket.state == 1:
              logger.warning("Cannot process pending subscriptions, WebSocket not connected.")
              return
         
@@ -216,6 +217,11 @@ class BackpackWebSocketClient:
             while not self._stop_event.is_set():
                 message_str = None # Initialize for error logging
                 try:
+                    # Check if websocket is still valid before trying to receive
+                    if not self.websocket or self.websocket.state != 1:
+                        logger.warning("WebSocket connection is closed or None, stopping listener.")
+                        break
+                    
                     logger.debug("Waiting for message from WebSocket...")
                     message_str = await self.websocket.recv()
                     logger.debug(f"Received message string: {message_str}")
@@ -274,7 +280,7 @@ class BackpackWebSocketClient:
         finally:
             logger.debug("WebSocket listener task stopped.")
             # Ensure connection is marked as closed if exiting loop unexpectedly
-            if self.websocket and self.websocket.open:
+            if self.websocket and self.websocket.state == 1:
                  try:
                      await self.websocket.close()
                  except Exception as e:
