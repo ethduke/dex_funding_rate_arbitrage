@@ -91,6 +91,20 @@ class FundingArbitrageEngine:
                     connected = await lighter.initialize_ws()
                     logger.info(f"Lighter WebSocket connected: {connected}")
             
+            # Initialize account credentials for exchanges that need it
+            lighter = self.exchanges.get("Lighter")
+            if lighter:
+                logger.info("Initializing Lighter account credentials...")
+                try:
+                    await lighter._ensure_account_initialized()
+                    if lighter.signer_client:
+                        logger.info("✅ Lighter SignerClient initialized successfully")
+                    else:
+                        logger.warning("⚠️ Lighter SignerClient not available - order placement will be disabled")
+                except Exception as e:
+                    logger.error(f"Failed to initialize Lighter account: {e}")
+                    logger.warning("⚠️ Lighter order placement will be disabled")
+            
             # Schedule initial check after a short delay
             logger.debug("Scheduling initial check after 5 seconds")
             asyncio.create_task(self._delayed_initial_check())
@@ -459,7 +473,18 @@ class FundingArbitrageEngine:
             
             # Check if Lighter has order placement capability
             if "Lighter" in [long_exchange, short_exchange]:
-                if not lighter or not hasattr(lighter, 'signer_client') or not lighter.signer_client:
+                if not lighter:
+                    logger.warning("Lighter exchange not available - skipping this opportunity")
+                    return None
+                
+                # Ensure account is initialized before checking SignerClient
+                try:
+                    await lighter._ensure_account_initialized()
+                except Exception as e:
+                    logger.warning(f"Failed to initialize Lighter account: {e} - skipping this opportunity")
+                    return None
+                
+                if not hasattr(lighter, 'signer_client') or not lighter.signer_client:
                     logger.warning("Lighter order placement not available (SignerClient not initialized) - skipping this opportunity")
                     return None
                 else:

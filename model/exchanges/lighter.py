@@ -82,16 +82,20 @@ class LighterExchange(BaseExchange):
             logger.info(f"Using account index: {self.account_index}")
 
             # Get account details using the account index
-            account_details = await self.account_api.account(by="index", value=str(self.account_index))
-            logger.info(f"Account details retrieved successfully")
-            
-            # Log account information
-            if hasattr(account_details, 'accounts') and account_details.accounts:
-                account = account_details.accounts[0]
-                logger.info(f"Account Type: {account.account_type}")
-                logger.info(f"Collateral: {account.collateral}")
-                logger.info(f"Total Asset Value: {account.total_asset_value}")
-                logger.info(f"Number of positions: {len(account.positions)}")
+            try:
+                account_details = await self.account_api.account(by="index", value=str(self.account_index))
+                logger.info(f"Account details retrieved successfully")
+                
+                # Log account information
+                if hasattr(account_details, 'accounts') and account_details.accounts:
+                    account = account_details.accounts[0]
+                    logger.info(f"Account Type: {account.account_type}")
+                    logger.info(f"Collateral: {account.collateral}")
+                    logger.info(f"Total Asset Value: {account.total_asset_value}")
+                    logger.info(f"Number of positions: {len(account.positions)}")
+            except Exception as e:
+                logger.warning(f"Could not retrieve account details (API compatibility issue): {e}")
+                logger.info("Continuing with SignerClient initialization...")
             
             # Initialize TransactionApi for future use
             self.transaction_api = lighter.TransactionApi(self.api_client)
@@ -106,7 +110,7 @@ class LighterExchange(BaseExchange):
                     self.signer_client = SignerClient(
                         url=CONFIG.LIGHTER_API_URL,
                         private_key=private_key,
-                        account_index=self.account_index,
+                        account_index=CONFIG.LIGHTER_ACCOUNT_INDEX,
                         api_key_index=CONFIG.LIGHTER_API_KEY_INDEX
                     )
                     logger.info("✅ Lighter SignerClient initialized for order placement")
