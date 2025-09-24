@@ -59,7 +59,7 @@ class LighterWebSocketClient:
                 close_timeout=10   # Wait 10 seconds for close
             )
             self._connected = True
-            logger.info("✅ Lighter WebSocket connected successfully")
+            logger.info("Lighter WebSocket connected successfully")
             
             # Subscribe to channels
             await self._subscribe_to_channels()
@@ -272,7 +272,7 @@ class LighterWebSocketClient:
         funding_rate = market_stats.get("current_funding_rate")
         if market_id is not None and funding_rate is not None:
             symbol = self._get_symbol_by_market_id(market_id)
-            logger.info(f"📊 Market Stats [{symbol}]: Funding Rate={funding_rate}")
+            logger.info(f"Market Stats [{symbol}]: Funding Rate={funding_rate}")
 
     def set_market_mapping(self, market_mapping: Dict[int, str]):
         """Set market mapping from parent exchange"""

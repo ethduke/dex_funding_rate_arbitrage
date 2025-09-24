@@ -33,7 +33,7 @@ def on_market_stats_update(market_stats):
         index_price = float(market_stats.get("index_price", 0))
         funding_timestamp = market_stats.get("funding_timestamp", 0)
         
-        logging.info(f"📊 Market Stats [{symbol}]: Funding Rate={funding_rate}, Mark Price={mark_price}, Index Price={index_price}")
+        logging.info(f" Market Stats [{symbol}]: Funding Rate={funding_rate}, Mark Price={mark_price}, Index Price={index_price}")
         
         # Store the latest market stats
         market_stats_data[market_id] = {
@@ -91,13 +91,13 @@ async def test_lighter_funding_rates():
         funding_api = lighter.FundingApi(api_client)
         
         print(f"API URL: {BASE_URL}")
-        print("✅ Funding API client created successfully!")
+        print(" Funding API client created successfully!")
         
         # Get funding rates
         print("Getting funding rates...")
         funding_rates = await funding_api.funding_rates()
         
-        print(f"📈 Funding Rates Response:")
+        print(f" Funding Rates Response:")
         print(json.dumps(funding_rates, indent=2, default=str))
         
         # Process funding rates into normalized format
@@ -116,17 +116,17 @@ async def test_lighter_funding_rates():
                 except Exception as e:
                     print(f"Error processing funding rate for market {rate.market_id}: {e}")
         
-        print(f"\n📊 Normalized Funding Rates ({len(normalized_rates)} markets):")
+        print(f"\n Normalized Funding Rates ({len(normalized_rates)} markets):")
         for symbol, data in normalized_rates.items():
             print(f"  {symbol}: {data['rate']} (Exchange: {data['exchange']})")
         
         await api_client.close()
-        print("✅ Funding rates test completed!")
+        print(" Funding rates test completed!")
         
         return normalized_rates
         
     except Exception as e:
-        print(f"❌ Error testing funding rates: {e}")
+        print(f" Error testing funding rates: {e}")
         import traceback
         traceback.print_exc()
         return {}
@@ -155,8 +155,8 @@ async def test_lighter_websocket_market_stats():
         # Wait a bit for connection
         await asyncio.sleep(10)
         
-        print("✅ WebSocket client started successfully!")
-        print("📊 Receiving order book, account, and market stats updates...")
+        print(" WebSocket client started successfully!")
+        print(" Receiving order book, account, and market stats updates...")
         
         # Wait for some updates to see the data flow
         print("Waiting for market data updates...")
@@ -164,13 +164,13 @@ async def test_lighter_websocket_market_stats():
         
         # Get current funding rates from WebSocket client
         funding_rates = client.get_funding_rates()
-        print(f"\n📈 Current Funding Rates from WebSocket ({len(funding_rates)} markets):")
+        print(f"\n Current Funding Rates from WebSocket ({len(funding_rates)} markets):")
         for symbol, data in funding_rates.items():
             print(f"  {symbol}: {data['rate']} (Mark: {data['mark_price']}, Index: {data['index_price']})")
         
         # Get all market stats
         market_stats = client.get_market_stats()
-        print(f"\n📊 All Market Stats from WebSocket ({len(market_stats)} markets):")
+        print(f"\n All Market Stats from WebSocket ({len(market_stats)} markets):")
         for market_id, stats in market_stats.items():
             print(f"  Market {market_id} ({stats['symbol']}): Funding={stats['funding_rate']}, Mark={stats['mark_price']}")
         
@@ -184,10 +184,10 @@ async def test_lighter_websocket_market_stats():
         except asyncio.CancelledError:
             pass
         
-        print("✅ WebSocket market stats test completed!")
+        print(" WebSocket market stats test completed!")
         
     except Exception as e:
-        print(f"❌ Error testing WebSocket market stats: {e}")
+        print(f" Error testing WebSocket market stats: {e}")
         import traceback
         traceback.print_exc()
 
@@ -217,10 +217,10 @@ async def account_apis(client: lighter.ApiClient):
         await print_api(account_instance.apikeys, account_index=ACCOUNT_INDEX, api_key_index=1)
         await print_api(account_instance.public_pools, filter="all", limit=1, index=0)
         
-        print("✅ Account APIs test completed successfully!")
+        print(" Account APIs test completed successfully!")
         
     except Exception as e:
-        print(f"❌ Error testing account APIs: {e}")
+        print(f" Error testing account APIs: {e}")
         import traceback
         traceback.print_exc()
 
@@ -235,7 +235,7 @@ async def test_lighter_api_structure():
         api_client = lighter.ApiClient(configuration=lighter.Configuration(host=BASE_URL))
         
         print(f"API URL: {BASE_URL}")
-        print("✅ API client created successfully!")
+        print(" API client created successfully!")
         
         # Test account APIs
         await account_apis(api_client)
@@ -248,10 +248,10 @@ async def test_lighter_api_structure():
             print(f"  - {method}")
         
         await api_client.close()
-        print("✅ API structure test completed!")
+        print(" API structure test completed!")
         
     except Exception as e:
-        print(f"❌ Error testing API structure: {e}")
+        print(f" Error testing API structure: {e}")
         import traceback
         traceback.print_exc()
 
@@ -299,7 +299,7 @@ async def compare_funding_rates():
         lighter_rates = rates_by_exchange.get('lighter', {})
         hyperliquid_rates = rates_by_exchange.get('hyperliquid', {})
         
-        print(f"\n📊 Funding Rate Comparison:")
+        print(f"\n Funding Rate Comparison:")
         print(f"Lighter markets: {len(lighter_rates)}")
         print(f"Hyperliquid markets: {len(hyperliquid_rates)}")
         
@@ -308,7 +308,7 @@ async def compare_funding_rates():
         print(f"Common symbols: {len(common_symbols)}")
         
         if common_symbols:
-            print(f"\n🔍 Detailed Comparison (Common Symbols):")
+            print(f"\n Detailed Comparison (Common Symbols):")
             print(f"{'Symbol':<15} {'Lighter':<12} {'Hyperliquid':<12} {'Difference':<12} {'Opportunity':<15}")
             print("-" * 70)
             
@@ -339,7 +339,7 @@ async def compare_funding_rates():
             
             opportunities.sort(key=lambda x: x[1], reverse=True)
             
-            print(f"\n🎯 Top Arbitrage Opportunities:")
+            print(f"\n Top Arbitrage Opportunities:")
             print(f"{'Symbol':<15} {'Difference':<12} {'Lighter':<12} {'Hyperliquid':<12}")
             print("-" * 55)
             
@@ -347,10 +347,10 @@ async def compare_funding_rates():
                 print(f"{symbol:<15} {diff:<12.6f} {l_rate:<12.6f} {h_rate:<12.6f}")
         
         await api_client.close()
-        print("✅ Funding rate comparison completed!")
+        print(" Funding rate comparison completed!")
         
     except Exception as e:
-        print(f"❌ Error comparing funding rates: {e}")
+        print(f" Error comparing funding rates: {e}")
         import traceback
         traceback.print_exc()
 
@@ -368,7 +368,7 @@ async def discover_markets():
         funding_api = lighter.FundingApi(api_client)
         
         print(f"API URL: {BASE_URL}")
-        print("✅ Funding API client created successfully!")
+        print(" Funding API client created successfully!")
         
         # Get funding rates to discover all markets
         print("Getting funding rates to discover markets...")
@@ -390,7 +390,7 @@ async def discover_markets():
                         "funding_rate": float(rate.rate) if rate.rate else 0
                     }
         
-        print(f"\n📊 Discovered Markets ({len(markets)} markets):")
+        print(f"\n Discovered Markets ({len(markets)} markets):")
         print(f"{'Market ID':<10} {'Symbol':<15} {'Exchange':<15} {'Funding Rate':<15}")
         print("-" * 60)
         
@@ -399,19 +399,19 @@ async def discover_markets():
         
         # Create symbol mapping for easy reference
         symbol_mapping = {market_id: info['symbol'] for market_id, info in markets.items()}
-        print(f"\n🔧 Symbol Mapping for Code:")
+        print(f"\n Symbol Mapping for Code:")
         print("symbol_mapping = {")
         for market_id, symbol in sorted(symbol_mapping.items()):
             print(f"    {market_id}: \"{symbol}\",")
         print("}")
         
         await api_client.close()
-        print("✅ Market discovery completed!")
+        print(" Market discovery completed!")
         
         return markets
         
     except Exception as e:
-        print(f"❌ Error discovering markets: {e}")
+        print(f" Error discovering markets: {e}")
         import traceback
         traceback.print_exc()
         return {}
@@ -442,20 +442,20 @@ async def test_market_mapping():
         print("Testing market ID to symbol mapping:")
         for market_id, expected_symbol in test_cases:
             actual_symbol = await lt_client._get_symbol_by_market_id(market_id)
-            status = "✅" if actual_symbol == expected_symbol else "❌"
+            status = "" if actual_symbol == expected_symbol else ""
             print(f"  {status} Market {market_id} -> {actual_symbol} (expected: {expected_symbol})")
         
         # Test reverse mapping
         print("\nTesting symbol to market ID mapping:")
         for market_id, symbol in test_cases:
             actual_market_id = await lt_client._get_market_id(symbol)
-            status = "✅" if actual_market_id == market_id else "❌"
+            status = "" if actual_market_id == market_id else ""
             print(f"  {status} {symbol} -> Market {actual_market_id} (expected: {market_id})")
         
-        print("✅ Market mapping test completed!")
+        print(" Market mapping test completed!")
         
     except Exception as e:
-        print(f"❌ Error testing market mapping: {e}")
+        print(f" Error testing market mapping: {e}")
         import traceback
         traceback.print_exc()
 
@@ -470,11 +470,11 @@ async def test_market_utilities():
         
         # Test market count
         market_count = lt_client.get_market_count()
-        print(f"📊 Total markets: {market_count}")
+        print(f" Total markets: {market_count}")
         
         # Test listing all markets
         all_markets = lt_client.list_all_markets()
-        print(f"📋 All markets ({len(all_markets)}):")
+        print(f" All markets ({len(all_markets)}):")
         for market_id, symbol in all_markets:
             print(f"  Market {market_id}: {symbol}")
         
@@ -485,12 +485,12 @@ async def test_market_utilities():
             for market_id, symbol in sorted(api_markets.items()):
                 print(f"  Market {market_id}: {symbol}")
         except Exception as e:
-            print(f"⚠️  Could not fetch from API: {e}")
+            print(f"  Could not fetch from API: {e}")
         
-        print("✅ Market utilities test completed!")
+        print(" Market utilities test completed!")
         
     except Exception as e:
-        print(f"❌ Error testing market utilities: {e}")
+        print(f" Error testing market utilities: {e}")
         import traceback
         traceback.print_exc()
 
@@ -505,7 +505,7 @@ async def test_dynamic_market_mapping():
         
         # Initially, cache should be empty
         initial_count = lt_client.get_market_count()
-        print(f"📊 Initial market count: {initial_count}")
+        print(f" Initial market count: {initial_count}")
         
         # Fetch markets from API
         markets = await lt_client.get_all_markets()
@@ -513,24 +513,24 @@ async def test_dynamic_market_mapping():
         
         # Now cache should be populated
         updated_count = lt_client.get_market_count()
-        print(f"📊 Updated market count: {updated_count}")
+        print(f" Updated market count: {updated_count}")
         
         # Test symbol mapping
         test_symbol = await lt_client._get_symbol_by_market_id(0)
-        print(f"✅ Market 0 -> {test_symbol}")
+        print(f" Market 0 -> {test_symbol}")
         
         # Test reverse mapping
         test_market_id = await lt_client._get_market_id("ETH")
-        print(f"✅ ETH -> Market {test_market_id}")
+        print(f" ETH -> Market {test_market_id}")
         
         # List all markets
         all_markets = lt_client.list_all_markets()
-        print(f"📋 Total markets listed: {len(all_markets)}")
+        print(f" Total markets listed: {len(all_markets)}")
         
-        print("✅ Dynamic market mapping test completed!")
+        print(" Dynamic market mapping test completed!")
         
     except Exception as e:
-        print(f"❌ Error testing dynamic market mapping: {e}")
+        print(f" Error testing dynamic market mapping: {e}")
         import traceback
         traceback.print_exc()
 

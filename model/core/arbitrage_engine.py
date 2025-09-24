@@ -98,12 +98,12 @@ class FundingArbitrageEngine:
                 try:
                     await lighter._ensure_account_initialized()
                     if lighter.signer_client:
-                        logger.info("✅ Lighter SignerClient initialized successfully")
+                        logger.info("Lighter SignerClient initialized successfully")
                     else:
-                        logger.warning("⚠️ Lighter SignerClient not available - order placement will be disabled")
+                        logger.warning("Lighter SignerClient not available - order placement will be disabled")
                 except Exception as e:
                     logger.error(f"Failed to initialize Lighter account: {e}")
-                    logger.warning("⚠️ Lighter order placement will be disabled")
+                    logger.warning("Lighter order placement will be disabled")
             
             # Schedule initial check after a short delay
             logger.debug("Scheduling initial check after 5 seconds")

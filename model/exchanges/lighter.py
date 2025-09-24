@@ -137,7 +137,7 @@ class LighterExchange(BaseExchange):
                         account_index=CONFIG.LIGHTER_ACCOUNT_INDEX,
                         api_key_index=CONFIG.LIGHTER_API_KEY_INDEX
                     )
-                    logger.info("✅ Lighter SignerClient initialized for order placement")
+                    logger.info("Lighter SignerClient initialized for order placement")
                 else:
                     logger.warning("LIGHTER_PRIVATE_KEY not configured - order placement will be disabled")
                     self.signer_client = None
@@ -145,7 +145,7 @@ class LighterExchange(BaseExchange):
                 logger.warning(f"Could not initialize SignerClient: {e} - order placement will be disabled")
                 self.signer_client = None
             
-            logger.info("✅ Lighter initialization successful!")
+            logger.info("Lighter initialization successful!")
 
         except Exception as e:
             logger.error(f"Failed to initialize Lighter account: {e}")
@@ -285,7 +285,7 @@ class LighterExchange(BaseExchange):
             avg_execution_price = int(current_price * 1e6)
             
             # Log order parameters for debugging
-            logger.info(f"🔍 Order parameters:")
+            logger.info(f"Order parameters:")
             logger.info(f"   Symbol: {symbol}, Side: {side}")
             logger.info(f"   Market ID: {market_id}")
             logger.info(f"   Current Price: ${current_price}")
