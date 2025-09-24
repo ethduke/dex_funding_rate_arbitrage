@@ -300,6 +300,19 @@ class LighterWebSocketClient:
             }
         return result
 
+    def get_latest_price(self, market_id: int) -> Optional[float]:
+        """Get latest price for a market from WebSocket data."""
+        try:
+            # Convert market_id to string since _market_stats uses string keys
+            market_key = str(market_id)
+            market_stats = self._market_stats.get(market_key)
+            if market_stats and 'mark_price' in market_stats:
+                return float(market_stats['mark_price'])
+            return None
+        except Exception as e:
+            logger.debug(f"Error getting latest price for market {market_id}: {e}")
+            return None
+
     def is_connected(self) -> bool:
         """Check if WebSocket is connected"""
         return self._connected and self.ws and self.ws.open

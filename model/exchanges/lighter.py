@@ -71,15 +71,39 @@ class LighterExchange(BaseExchange):
             # Get configuration
             BASE_URL = CONFIG.LIGHTER_API_URL
             API_KEY_INDEX = CONFIG.LIGHTER_API_KEY_INDEX
-            ACCOUNT_INDEX = CONFIG.LIGHTER_ACCOUNT_INDEX
             
             logger.info(f"Initializing Lighter for mainnet: {BASE_URL}")
             logger.info(f"API Key Index: {API_KEY_INDEX}")
-            logger.info(f"Account Index: {ACCOUNT_INDEX}")
 
-            # Use the account index from config
-            self.account_index = ACCOUNT_INDEX
-            logger.info(f"Using account index: {self.account_index}")
+            # Get account index dynamically from ETH private key
+            eth_private_key = CONFIG.get('LIGHTER_PRIVATE_KEY')
+            if eth_private_key:
+                import eth_account
+                eth_acc = eth_account.Account.from_key(eth_private_key)
+                eth_address = eth_acc.address
+                
+                logger.info(f"Looking up account for Ethereum address: {eth_address}")
+                
+                try:
+                    response = await self.account_api.accounts_by_l1_address(l1_address=eth_address)
+                    
+                    if len(response.sub_accounts) > 1:
+                        logger.info(f"Found {len(response.sub_accounts)} accounts:")
+                        for sub_account in response.sub_accounts:
+                            logger.info(f"  Account index: {sub_account.index}")
+                        logger.info("Using the first account")
+                        self.account_index = response.sub_accounts[0].index
+                    else:
+                        self.account_index = response.sub_accounts[0].index
+                        
+                    logger.info(f"Using account index: {self.account_index}")
+                    
+                except lighter.ApiException as e:
+                    if e.data.message == "account not found":
+                        logger.error(f"Account not found for {eth_address}")
+                        raise Exception(f"Account not found for {eth_address}")
+                    else:
+                        raise e
 
             # Get account details using the account index
             try:
@@ -235,16 +259,18 @@ class LighterExchange(BaseExchange):
             # Convert symbol to market_id
             market_id = await self._get_market_id(symbol)
             
-            # Determine the base amount
+            # Get current price for the symbol
+            current_price = await self._get_current_price(symbol)
+            if not current_price or current_price <= 0:
+                return {"error": f"Could not get current price for {symbol}"}
+            
+            # Determine the base amount and price based on dynamic estimate
             if quote_quantity is not None:
-                # If quote_quantity is provided, we need to convert USD to base amount
-                # For now, we'll use a simple conversion (this should be improved with real price)
-                # Assuming BTC price is around $50,000 for calculation
-                estimated_price = 50000  # This should be fetched from order book
-                base_amount = int((quote_quantity / estimated_price) * 1e6)  # Convert to micro units
+                # Convert USD to base units via dynamic price
+                base_amount = int((quote_quantity / current_price) * self._get_base_scale(symbol))
             elif quantity is not None:
                 # If quantity is provided, convert to base amount
-                base_amount = int(quantity * 1e6)  # Convert to micro units
+                base_amount = int(quantity * self._get_base_scale(symbol))
             else:
                 return {"error": "Either quantity or quote_quantity must be provided"}
             
@@ -255,9 +281,18 @@ class LighterExchange(BaseExchange):
             # Convert side to is_ask format
             is_ask = side.upper() == "SELL"
             
-            # Get current price for avg_execution_price (you might want to get this from order book)
-            # For now, using a placeholder price
-            avg_execution_price = 50000000  # $50,000 in micro units
+            # Calculate avg_execution_price in micro units (price * 1e6)
+            avg_execution_price = int(current_price * 1e6)
+            
+            # Log order parameters for debugging
+            logger.info(f"🔍 Order parameters:")
+            logger.info(f"   Symbol: {symbol}, Side: {side}")
+            logger.info(f"   Market ID: {market_id}")
+            logger.info(f"   Current Price: ${current_price}")
+            logger.info(f"   Base amount: {base_amount}")
+            logger.info(f"   Avg execution price: {avg_execution_price}")
+            logger.info(f"   Is ask: {is_ask}")
+            logger.info(f"   Reduce only: {reduce_only}")
             
             # Create market order using the correct method
             tx = await self.signer_client.create_order(
@@ -353,6 +388,7 @@ class LighterExchange(BaseExchange):
         except Exception as e:
             logger.error(f"Failed to get account by L1 address: {e}")
             raise
+
 
     async def get_account_limits(self):
         """Get account limits"""
@@ -483,4 +519,83 @@ class LighterExchange(BaseExchange):
         # Simple implementation - you might want to use a more sophisticated approach
         import time
         return int(time.time() * 1000)
+
+    async def _get_current_price(self, symbol: str) -> Optional[float]:
+        """Get current price for a symbol from WebSocket or fallback to API."""
+        try:
+            # Try WebSocket first if available
+            if self.use_ws and self.ws_client and self.ws_client.is_connected():
+                try:
+                    market_id = await self._get_market_id(symbol)
+                    latest_price = self.ws_client.get_latest_price(market_id)
+                    if latest_price and latest_price > 0:
+                        logger.debug(f"Got price from WebSocket for {symbol}: ${latest_price}")
+                        return latest_price
+                except Exception as e:
+                    logger.debug(f"WebSocket price fetch failed for {symbol}: {e}")
+            
+            # Fallback: try to get from positions (entry price)
+            try:
+                balance = await self.get_real_balance()
+                for position in balance.get("positions", []):
+                    if position.get("symbol") == symbol:
+                        entry_price = float(position.get("entry_price", 0))
+                        if entry_price > 0:
+                            logger.debug(f"Got price from position entry for {symbol}: ${entry_price}")
+                            return entry_price
+            except Exception as e:
+                logger.debug(f"Position price fetch failed for {symbol}: {e}")
+            
+            # Last resort: use reasonable defaults based on symbol
+            default_prices = {
+                "BTC": 50000.0,
+                "ETH": 3000.0,
+                "SOL": 100.0,
+                "DOGE": 0.08,
+                "LINK": 15.0,
+                "TRUMP": 0.5,
+                "FARTCOIN": 0.001,
+                "HYPE": 0.1,
+                "KAITO": 0.05,
+                "IP": 0.02,
+                "YZY": 0.01,
+                "ASTER": 0.005,
+                "1000PEPE": 0.00001
+            }
+            
+            default_price = default_prices.get(symbol.upper())
+            if default_price:
+                logger.warning(f"Using default price for {symbol}: ${default_price}")
+                return default_price
+            
+            logger.error(f"Could not get current price for {symbol}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to get current price for {symbol}: {e}")
+            return None
+
+    def _get_base_scale(self, symbol: str) -> int:
+        """Return base unit scale per market.
+        
+        Different markets have different precision requirements.
+        This should match the actual market configuration on Lighter.
+        """
+        # Conservative scaling based on typical market requirements
+        scale_mapping = {
+            "BTC": int(1e5),      # 100,000 units per BTC
+            "ETH": int(1e6),      # 1,000,000 units per ETH  
+            "SOL": int(1e6),      # 1,000,000 units per SOL
+            "DOGE": int(1e6),     # 1,000,000 units per DOGE
+            "LINK": int(1e6),     # 1,000,000 units per LINK
+            "TRUMP": int(1e6),    # 1,000,000 units per TRUMP
+            "FARTCOIN": int(1e6), # 1,000,000 units per FARTCOIN
+            "HYPE": int(1e6),     # 1,000,000 units per HYPE
+            "KAITO": int(1e6),    # 1,000,000 units per KAITO
+            "IP": int(1e6),       # 1,000,000 units per IP
+            "YZY": int(1e6),      # 1,000,000 units per YZY
+            "ASTER": int(1e6),    # 1,000,000 units per ASTER
+            "1000PEPE": int(1e6), # 1,000,000 units per 1000PEPE
+        }
+        return scale_mapping.get(symbol.upper(), int(1e6))  # Default to 1e6
 
