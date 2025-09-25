@@ -65,6 +65,32 @@ class LighterExchange(BaseExchange):
         if self.account_index is None:
             await self._initialize_account()
     
+    def _is_valid_private_key(self, private_key: str) -> bool:
+        """Validate private key format for Lighter."""
+        try:
+            # Remove '0x' prefix if present
+            if private_key.startswith('0x'):
+                private_key = private_key[2:]
+            
+            # Check if it's a placeholder value
+            if private_key.lower() in ['your_private_key_here', 'placeholder', '']:
+                return False
+            
+            # Must be valid hex
+            int(private_key, 16)
+
+            # Validate decoded byte length explicitly (SignerClient expects 32 bytes)
+            try:
+                key_bytes = bytes.fromhex(private_key)
+            except ValueError:
+                return False
+
+            # SignerClient expects 40 bytes (80 hex chars)
+            return len(key_bytes) == 40
+            
+        except (ValueError, TypeError):
+            return False
+
     async def _initialize_account(self):
         """Initialize account for Lighter exchange using mainnet"""
         try:
@@ -75,36 +101,10 @@ class LighterExchange(BaseExchange):
             logger.info(f"Initializing Lighter for mainnet: {BASE_URL}")
             logger.info(f"API Key Index: {API_KEY_INDEX}")
 
-            # Get account index dynamically from ETH private key
-            eth_private_key = CONFIG.get('LIGHTER_PRIVATE_KEY')
-            if eth_private_key:
-                import eth_account
-                eth_acc = eth_account.Account.from_key(eth_private_key)
-                eth_address = eth_acc.address
-                
-                logger.info(f"Looking up account for Ethereum address: {eth_address}")
-                
-                try:
-                    response = await self.account_api.accounts_by_l1_address(l1_address=eth_address)
-                    
-                    if len(response.sub_accounts) > 1:
-                        logger.info(f"Found {len(response.sub_accounts)} accounts:")
-                        for sub_account in response.sub_accounts:
-                            logger.info(f"  Account index: {sub_account.index}")
-                        logger.info("Using the first account")
-                        self.account_index = response.sub_accounts[0].index
-                    else:
-                        self.account_index = response.sub_accounts[0].index
-                        
-                    logger.info(f"Using account index: {self.account_index}")
-                    
-                except lighter.ApiException as e:
-                    if e.data.message == "account not found":
-                        logger.error(f"Account not found for {eth_address}")
-                        raise Exception(f"Account not found for {eth_address}")
-                    else:
-                        raise e
-
+            # Use the account index from config directly
+            self.account_index = CONFIG.LIGHTER_ACCOUNT_INDEX
+            logger.info(f"Using configured account index: {self.account_index}")
+            
             # Get account details using the account index
             try:
                 account_details = await self.account_api.account(by="index", value=str(self.account_index))
@@ -130,14 +130,25 @@ class LighterExchange(BaseExchange):
                 # Get private key from environment (you'll need to set this)
                 private_key = CONFIG.get('LIGHTER_PRIVATE_KEY')
                 if private_key:
-                    # Initialize SignerClient with proper parameters
-                    self.signer_client = SignerClient(
-                        url=CONFIG.LIGHTER_API_URL,
-                        private_key=private_key,
-                        account_index=CONFIG.LIGHTER_ACCOUNT_INDEX,
-                        api_key_index=CONFIG.LIGHTER_API_KEY_INDEX
-                    )
-                    logger.info("Lighter SignerClient initialized for order placement")
+                    logger.info(f"Raw private key from config: {private_key[:10]}... (length: {len(private_key)})")
+                    
+                    # Validate private key format
+                    if not self._is_valid_private_key(private_key):
+                        logger.error("Invalid private key format - must be 40 bytes (80 hex characters)")
+                        self.signer_client = None
+                    else:
+                        try:
+                            # Use the private key directly (SignerClient expects 40 bytes)
+                            self.signer_client = SignerClient(
+                                url=CONFIG.LIGHTER_API_URL,
+                                private_key=private_key,
+                                account_index=CONFIG.LIGHTER_ACCOUNT_INDEX,
+                                api_key_index=CONFIG.LIGHTER_API_KEY_INDEX
+                            )
+                            logger.info("Lighter SignerClient initialized successfully")
+                        except Exception as e:
+                            logger.error(f"SignerClient initialization failed: {e}")
+                            self.signer_client = None
                 else:
                     logger.warning("LIGHTER_PRIVATE_KEY not configured - order placement will be disabled")
                     self.signer_client = None
