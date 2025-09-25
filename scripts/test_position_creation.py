@@ -32,24 +32,39 @@ def get_hyperliquid_balances(hl: HyperliquidExchange):
 def print_diagnostics(asset: str, size: float, bp: BackpackExchange, hl: HyperliquidExchange):
     logger.info(f"Planned trade: LONG on Backpack, SHORT on Hyperliquid | asset={asset}, size=${size}")
 
-    # Backpack: show available balance if possible
+    # Backpack: show raw balances and summarize
     try:
         bp_bal = bp.get_balances()
-        available = None
-        items = []
+        try:
+            import json
+            raw = json.dumps(bp_bal, indent=2) if not isinstance(bp_bal, str) else bp_bal
+            logger.info(f"Backpack balances raw (trimmed):\n{raw[:2000]}")
+        except Exception:
+            logger.info(f"Backpack balances raw (unserializable): {type(bp_bal)}")
+
+        # Summarize entries in common shapes
         if isinstance(bp_bal, dict):
-            items = bp_bal.get("data") or bp_bal.get("balances") or bp_bal.get("assets") or []
+            items = bp_bal.get("data") or bp_bal.get("balances") or bp_bal.get("assets")
+            if isinstance(items, list):
+                for it in items:
+                    sym = (it.get("symbol") or it.get("asset") or it.get("currency") or "").upper()
+                    available = it.get("available") or it.get("free")
+                    locked = it.get("locked") or it.get("inOrder")
+                    staked = it.get("staked")
+                    if sym:
+                        logger.info(f"Backpack item: {sym} available={available} locked={locked} staked={staked}")
+            else:
+                for sym, it in bp_bal.items():
+                    if isinstance(it, dict):
+                        available = it.get("available")
+                        locked = it.get("locked")
+                        staked = it.get("staked")
+                        logger.info(f"Backpack entry: {sym} available={available} locked={locked} staked={staked}")
         elif isinstance(bp_bal, list):
-            items = bp_bal
-        for item in items:
-            sym = (item.get("symbol") or item.get("asset") or "").upper()
-            if sym in ("USDC", "USD"):
-                available = float(item.get("available", item.get("free", 0)))
-                break
-        if available is not None:
-            logger.info(f"Backpack available: ${available:.2f}")
+            for it in bp_bal:
+                logger.info(f"Backpack list entry: {it}")
         else:
-            logger.info("Backpack balance: unavailable (no USDC entry found)")
+            logger.info(f"Backpack balances unexpected type: {type(bp_bal)} -> {bp_bal}")
     except Exception as e:
         logger.warning(f"Backpack balances fetch failed: {e}")
 
@@ -110,10 +125,12 @@ def close_both(asset: str, bp: BackpackExchange, hl: HyperliquidExchange):
 
 def main():
     # ========= Configurable parameters =========
-    ASSET = "0G"          # asset symbol to trade
-    SIZE_USD = 50.0        # USD notional per leg
-    EXECUTE = True         # set True to place orders, False to only print diagnostics
-    CLOSE_AFTER = False    # set True to attempt closing both legs after placement
+    ASSET = "0G"              # asset symbol to trade
+    SIZE_USD = 50.0            # USD notional per leg
+    EXECUTE = True             # set True to place orders, False to only print diagnostics
+    CLOSE_AFTER = False        # set True to attempt closing both legs after placement
+    DO_BACKPACK_LONG = True    # control which legs to place (HL disabled per request)
+    DO_HYPERLIQUID_SHORT = False
     # ===========================================
 
     # Initialize clients
@@ -127,9 +144,32 @@ def main():
         logger.info("Diagnostics complete (EXECUTE=False).")
         return 0
 
-    rc = execute(ASSET, SIZE_USD, bp, hl)
+    # Selective execution
+    rc = 0
+    if DO_BACKPACK_LONG and DO_HYPERLIQUID_SHORT:
+        rc = execute(ASSET, SIZE_USD, bp, hl)
+    elif DO_HYPERLIQUID_SHORT and not DO_BACKPACK_LONG:
+        try:
+            logger.info(f"Opening SHORT on Hyperliquid for {ASSET} size ${SIZE_USD}")
+            res_short = hl.open_short(ASSET, SIZE_USD)
+            logger.info(f"Hyperliquid open_short result: {res_short}")
+            if isinstance(res_short, dict) and res_short.get("status") in ("error", "err"):
+                rc = 1
+        except Exception as e:
+            logger.error(f"Hyperliquid SHORT exception: {e}")
+            rc = 1
+    elif DO_BACKPACK_LONG and not DO_HYPERLIQUID_SHORT:
+        try:
+            logger.info(f"Opening LONG on Backpack for {ASSET} size ${SIZE_USD}")
+            res_long = bp.open_long(ASSET, SIZE_USD)
+            logger.info(f"Backpack open_long result: {res_long}")
+            if isinstance(res_long, dict) and res_long.get("error"):
+                rc = 1
+        except Exception as e:
+            logger.error(f"Backpack LONG exception: {e}")
+            rc = 1
 
-    if CLOSE_AFTER:
+    if CLOSE_AFTER and DO_BACKPACK_LONG and DO_HYPERLIQUID_SHORT:
         close_both(ASSET, bp, hl)
 
     return rc

@@ -173,19 +173,51 @@ class BackpackExchange(BaseExchange):
     def get_balances(self) -> Dict:
         """Get account balances and states (locked/available)."""
         headers = self.sign_request("balanceQuery")
+        # Do not log secrets; only structure
+        safe_headers = {
+            "X-API-KEY": headers.get("X-API-Key", "***"),
+            "X-TIMESTAMP": headers.get("X-Timestamp", "***"),
+            "X-WINDOW": headers.get("X-Window", "***"),
+        }
         url = f"{CONFIG.BACKPACK_API_URL_CAPITAL}"
+        logger.debug(f"GET {url} headers={list(safe_headers.keys())}")
         try:
             response = requests.get(url, headers=headers, proxies=self.proxies, timeout=10)
+            logger.debug(f"Backpack balances status={response.status_code}")
             if response.status_code != 200:
-                logger.error(f"Backpack get_balances API error: {response.status_code} {response.text}")
+                snippet = response.text[:500] if response.text else ""
+                logger.error(f"Backpack get_balances API error: {response.status_code} {snippet}")
                 return {"error": f"status {response.status_code}", "response": response.text}
             data = response.json()
+            if isinstance(data, dict):
+                logger.debug(f"Backpack balances keys: {list(data.keys())}")
+                for key in ("data", "balances", "assets"):
+                    if key in data and isinstance(data[key], list):
+                        logger.debug(f"Backpack balances[{key}] length: {len(data[key])}")
             return data
         except requests.Timeout:
             logger.error("Request to Backpack balances timed out")
             return {"error": "timeout"}
         except Exception as e:
             logger.error(f"Error fetching Backpack balances: {e}")
+            return {"error": str(e)}
+
+    def get_collateral(self, subaccount_id: Optional[int] = None) -> Dict:
+        """Get collateral summary (netEquity, available, etc.)."""
+        headers = self.sign_request("collateralQuery", params={"subaccountId": subaccount_id} if subaccount_id is not None else None)
+        url = f"{CONFIG.BACKPACK_API_URL_COLLATERAL}"
+        try:
+            response = requests.get(url, headers=headers, proxies=self.proxies, timeout=10)
+            if response.status_code != 200:
+                snippet = response.text[:500] if response.text else ""
+                logger.error(f"Backpack get_collateral API error: {response.status_code} {snippet}")
+                return {"error": f"status {response.status_code}", "response": response.text}
+            return response.json()
+        except requests.Timeout:
+            logger.error("Request to Backpack collateral timed out")
+            return {"error": "timeout"}
+        except Exception as e:
+            logger.error(f"Error fetching Backpack collateral: {e}")
             return {"error": str(e)}
 
     # Unified balance/min-notional
@@ -195,14 +227,50 @@ class BackpackExchange(BaseExchange):
             if isinstance(data, dict) and data.get("error"):
                 return 0.0
             items = []
+            mapping = None
             if isinstance(data, dict):
+                # Two common shapes: list container OR mapping of symbols -> {available, locked, ...}
                 items = data.get("data") or data.get("balances") or data.get("assets") or []
+                if not items:
+                    mapping = data  # mapping variant
             elif isinstance(data, list):
                 items = data
-            for item in items:
-                sym = (item.get("symbol") or item.get("asset") or "").upper()
-                if sym in ("USDC", "USD"):
-                    return float(item.get("available", item.get("free", 0)))
+            # Prefer USD over USDC
+            def extract_available(it: Dict) -> float:
+                # Common fields for available/total/locked
+                if it.get("available") is not None:
+                    return float(it.get("available"))
+                if it.get("free") is not None:
+                    return float(it.get("free"))
+                total = it.get("balance") or it.get("total") or it.get("amount")
+                locked = it.get("locked") or it.get("inOrder") or 0
+                try:
+                    if total is not None:
+                        return float(total) - float(locked or 0)
+                except Exception:
+                    return 0.0
+                return 0.0
+
+            # First pass: USD
+            if items:
+                for it in items:
+                    sym = (it.get("symbol") or it.get("asset") or it.get("currency") or it.get("code") or "").upper()
+                    if sym == "USD":
+                        return extract_available(it)
+            elif mapping:
+                it = mapping.get("USD") or mapping.get("usd")
+                if isinstance(it, dict):
+                    return extract_available(it)
+            # Second pass: USDC
+            if items:
+                for it in items:
+                    sym = (it.get("symbol") or it.get("asset") or it.get("currency") or it.get("code") or "").upper()
+                    if sym == "USDC":
+                        return extract_available(it)
+            elif mapping:
+                it = mapping.get("USDC") or mapping.get("usdc")
+                if isinstance(it, dict):
+                    return extract_available(it)
         except Exception:
             return 0.0
         return 0.0
