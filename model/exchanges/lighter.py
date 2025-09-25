@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Any, Callable, Tuple
 from utils.config import CONFIG
 from utils.logger import setup_logger
 from lighter import SignerClient
+from datetime import datetime
 
 logger = setup_logger(__name__)
 
@@ -252,7 +253,7 @@ class LighterExchange(BaseExchange):
             logger.error(f"Failed to get positions from Lighter: {e}")
             return []
 
-    async def place_market_order(
+    async def _place_market_order_async(
         self,
         symbol: str,
         side: str,
@@ -270,18 +271,22 @@ class LighterExchange(BaseExchange):
             # Convert symbol to market_id
             market_id = await self._get_market_id(symbol)
             
-            # Get current price for the symbol
-            current_price = await self._get_current_price(symbol)
-            if not current_price or current_price <= 0:
-                return {"error": f"Could not get current price for {symbol}"}
-            
+            # Determine per-market base scale (units per 1 base asset)
+            base_scale = self._get_base_scale(symbol)
+
+            # Determine the base amount and price without hardcoded constants
+            estimated_price = await self._get_estimated_price(symbol)
+            if not estimated_price or estimated_price <= 0:
+                logger.warning(f"Could not estimate price for {symbol}; using 1.0 as fallback")
+                estimated_price = 1.0
+
             # Determine the base amount and price based on dynamic estimate
             if quote_quantity is not None:
                 # Convert USD to base units via dynamic price
-                base_amount = int((quote_quantity / current_price) * self._get_base_scale(symbol))
+                base_amount = int((quote_quantity / estimated_price) * base_scale)
             elif quantity is not None:
                 # If quantity is provided, convert to base amount
-                base_amount = int(quantity * self._get_base_scale(symbol))
+                base_amount = int(quantity * base_scale)
             else:
                 return {"error": "Either quantity or quote_quantity must be provided"}
             
@@ -292,31 +297,45 @@ class LighterExchange(BaseExchange):
             # Convert side to is_ask format
             is_ask = side.upper() == "SELL"
             
-            # Calculate avg_execution_price in micro units (price * 1e6)
-            avg_execution_price = int(current_price * 1e6)
-            
+            # Use SDK helper to constrain execution by slippage instead of arbitrary bounds
+            max_slippage = float(CONFIG.get("LIGHTER_MAX_SLIPPAGE", 0.01))
+
             # Log order parameters for debugging
-            logger.info(f"Order parameters:")
+            logger.info(f"🔍 Order parameters:")
             logger.info(f"   Symbol: {symbol}, Side: {side}")
             logger.info(f"   Market ID: {market_id}")
-            logger.info(f"   Current Price: ${current_price}")
             logger.info(f"   Base amount: {base_amount}")
-            logger.info(f"   Avg execution price: {avg_execution_price}")
+            logger.info(f"   Base scale: {base_scale}")
+            logger.info(f"   Max slippage: {max_slippage}")
             logger.info(f"   Is ask: {is_ask}")
             logger.info(f"   Reduce only: {reduce_only}")
             
-            # Create market order using the correct method
-            tx = await self.signer_client.create_order(
+            # Prefer limited slippage market to avoid cancellations
+            created, api_resp, err = await self.signer_client.create_market_order_limited_slippage(
                 market_index=market_id,
                 client_order_index=self._get_next_client_order_index(),
                 base_amount=base_amount,
-                price=avg_execution_price,
+                max_slippage=max_slippage,
                 is_ask=is_ask,
-                order_type=lighter.SignerClient.ORDER_TYPE_MARKET,
-                time_in_force=lighter.SignerClient.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL,
                 reduce_only=reduce_only,
-                order_expiry=lighter.SignerClient.DEFAULT_IOC_EXPIRY
             )
+            if err is not None:
+                logger.warning(f"Limited-slippage market order fell back due to error: {err}; trying plain market with wide bound")
+                # Fallback: compute a wide-guard avg_execution_price based on side
+                if is_ask:
+                    avg_execution_price = max(1, int(estimated_price * (1 - max_slippage) * 1e6))
+                else:
+                    avg_execution_price = int(estimated_price * (1 + max_slippage) * 1e6)
+                created, api_resp, err = await self.signer_client.create_market_order(
+                    market_index=market_id,
+                    client_order_index=self._get_next_client_order_index(),
+                    base_amount=base_amount,
+                    avg_execution_price=avg_execution_price,
+                    is_ask=is_ask,
+                    reduce_only=reduce_only,
+                )
+
+            tx = (created, api_resp, err)
             
             logger.info(f"Lighter market order created: {tx}")
             return {"status": "success", "tx": tx}
@@ -324,6 +343,20 @@ class LighterExchange(BaseExchange):
         except Exception as e:
             logger.error(f"Failed to place market order: {e}")
             return {"error": f"Failed to place market order: {str(e)}"}
+
+    async def place_market_order(
+        self,
+        symbol: str,
+        side: str,
+        quantity: Optional[float] = None,
+        quote_quantity: Optional[float] = None,
+        reduce_only: bool = False
+    ) -> Dict:
+        """Place a market order."""
+        # Use the existing async implementation
+        return await self._place_market_order_async(
+            symbol, side, quantity, quote_quantity, reduce_only
+        )
 
     async def close_position(self, symbol: str) -> Dict:
         """Close position for a specific symbol."""
@@ -526,60 +559,26 @@ class LighterExchange(BaseExchange):
         return reverse_mapping.get(symbol.upper(), 1)  # Default to BTC (market 1) if not found
 
     def _get_next_client_order_index(self) -> int:
-        """Get next client order index"""
-        # Simple implementation - you might want to use a more sophisticated approach
-        import time
-        return int(time.time() * 1000)
+        """Get next client order index for order tracking."""
+        if not hasattr(self, '_client_order_counter'):
+            self._client_order_counter = 0
+        self._client_order_counter += 1
+        return self._client_order_counter
 
-    async def _get_current_price(self, symbol: str) -> Optional[float]:
-        """Get current price for a symbol from WebSocket or fallback to API."""
+    async def get_current_price(self, symbol: str) -> Optional[float]:
+        """Get current price for a symbol from WebSocket only."""
         try:
-            # Try WebSocket first if available
+            # If WebSocket is enabled, try to get from market stats
             if self.use_ws and self.ws_client and self.ws_client.is_connected():
                 try:
                     market_id = await self._get_market_id(symbol)
                     latest_price = self.ws_client.get_latest_price(market_id)
-                    if latest_price and latest_price > 0:
-                        logger.debug(f"Got price from WebSocket for {symbol}: ${latest_price}")
+                    if latest_price:
                         return latest_price
-                except Exception as e:
-                    logger.debug(f"WebSocket price fetch failed for {symbol}: {e}")
+                except:
+                    pass
             
-            # Fallback: try to get from positions (entry price)
-            try:
-                balance = await self.get_real_balance()
-                for position in balance.get("positions", []):
-                    if position.get("symbol") == symbol:
-                        entry_price = float(position.get("entry_price", 0))
-                        if entry_price > 0:
-                            logger.debug(f"Got price from position entry for {symbol}: ${entry_price}")
-                            return entry_price
-            except Exception as e:
-                logger.debug(f"Position price fetch failed for {symbol}: {e}")
-            
-            # Last resort: use reasonable defaults based on symbol
-            default_prices = {
-                "BTC": 50000.0,
-                "ETH": 3000.0,
-                "SOL": 100.0,
-                "DOGE": 0.08,
-                "LINK": 15.0,
-                "TRUMP": 0.5,
-                "FARTCOIN": 0.001,
-                "HYPE": 0.1,
-                "KAITO": 0.05,
-                "IP": 0.02,
-                "YZY": 0.01,
-                "ASTER": 0.005,
-                "1000PEPE": 0.00001
-            }
-            
-            default_price = default_prices.get(symbol.upper())
-            if default_price:
-                logger.warning(f"Using default price for {symbol}: ${default_price}")
-                return default_price
-            
-            logger.error(f"Could not get current price for {symbol}")
+            logger.warning(f"No WebSocket price data available for {symbol}")
             return None
             
         except Exception as e:
@@ -588,25 +587,88 @@ class LighterExchange(BaseExchange):
 
     def _get_base_scale(self, symbol: str) -> int:
         """Return base unit scale per market.
-        
-        Different markets have different precision requirements.
-        This should match the actual market configuration on Lighter.
+
+        Many Lighter markets appear to use 1e5 for BTC sized assets and 1e6 for others.
+        We'll use a conservative mapping and can refine if needed.
         """
-        # Conservative scaling based on typical market requirements
-        scale_mapping = {
-            "BTC": int(1e5),      # 100,000 units per BTC
-            "ETH": int(1e6),      # 1,000,000 units per ETH  
-            "SOL": int(1e6),      # 1,000,000 units per SOL
-            "DOGE": int(1e6),     # 1,000,000 units per DOGE
-            "LINK": int(1e6),     # 1,000,000 units per LINK
-            "TRUMP": int(1e6),    # 1,000,000 units per TRUMP
-            "FARTCOIN": int(1e6), # 1,000,000 units per FARTCOIN
-            "HYPE": int(1e6),     # 1,000,000 units per HYPE
-            "KAITO": int(1e6),    # 1,000,000 units per KAITO
-            "IP": int(1e6),       # 1,000,000 units per IP
-            "YZY": int(1e6),      # 1,000,000 units per YZY
-            "ASTER": int(1e6),    # 1,000,000 units per ASTER
-            "1000PEPE": int(1e6), # 1,000,000 units per 1000PEPE
+        mapping = {
+            "BTC": int(1e5),
+            # Reasonable defaults; adjust per discovered market metadata
+            "SOL": int(1e6),
+            "DOGE": int(1e6),
+            "1000PEPE": int(1e6),
+            "LINK": int(1e6),
+            "TRUMP": int(1e6),
         }
-        return scale_mapping.get(symbol.upper(), int(1e6))  # Default to 1e6
+        return mapping.get(symbol.upper(), int(1e6))
+
+    async def _get_estimated_price(self, symbol: str) -> Optional[float]:
+        """Estimate current price for symbol without hardcoded constants.
+
+        Tries WS latest price, then position entry price.
+        Returns price in USD.
+        """
+        # Try WebSocket latest price
+        try:
+            ws_price = await self.get_current_price(symbol)
+            if ws_price and ws_price > 0:
+                return float(ws_price)
+        except Exception:
+            pass
+
+        # Try position entry price if any
+        try:
+            balance = await self.get_real_balance()
+            for p in balance.get("positions", []):
+                if p.get("symbol") == symbol and float(p.get("entry_price", 0)) > 0:
+                    return float(p["entry_price"])
+        except Exception:
+            pass
+
+        return None
+
+    async def get_real_balance(self) -> Dict:
+        """Get real account balance from Lighter."""
+        try:
+            await self._ensure_account_initialized()
+            
+            # Get account details
+            account_details = await self.account_api.account(by="index", value=str(self.account_index))
+            
+            if hasattr(account_details, 'accounts') and account_details.accounts:
+                account = account_details.accounts[0]
+                
+                balance_info = {
+                    'account_index': self.account_index,
+                    'account_type': account.account_type,
+                    'collateral': float(account.collateral) if hasattr(account, 'collateral') else 0.0,
+                    'total_asset_value': float(account.total_asset_value) if hasattr(account, 'total_asset_value') else 0.0,
+                    'free_collateral': float(account.free_collateral) if hasattr(account, 'free_collateral') else 0.0,
+                    'positions_count': len(account.positions) if hasattr(account, 'positions') else 0,
+                    'timestamp': datetime.now().isoformat()
+                }
+                
+                # Extract positions if available
+                if hasattr(account, 'positions') and account.positions:
+                    balance_info['positions'] = []
+                    for position in account.positions:
+                        pos_info = {
+                            'symbol': position.symbol,
+                            'size': float(position.position),
+                            'side': 'long' if float(position.position) > 0 else 'short',
+                            'entry_price': float(position.avg_entry_price),
+                            'unrealized_pnl': float(position.unrealized_pnl),
+                            'market_id': position.market_id
+                        }
+                        balance_info['positions'].append(pos_info)
+                
+                logger.info(f"Real balance fetched: ${balance_info['total_asset_value']:.2f} total, ${balance_info['free_collateral']:.2f} free")
+                return balance_info
+            else:
+                logger.warning("No account details found")
+                return {'error': 'No account details found'}
+                
+        except Exception as e:
+            logger.error(f"Failed to get real balance: {e}")
+            return {'error': f'Failed to get real balance: {str(e)}'}
 
