@@ -103,6 +103,29 @@ class LighterWebSocketClient:
             self._connected = False
             raise
 
+    async def resubscribe_order_books(self, market_ids: List[int]) -> bool:
+        """Update order_book_ids and reconnect to reflect new subscriptions.
+
+        Lighter SDK WsClient does not expose dynamic subscription for order books
+        in the current wrapper, so we reconnect with the new set.
+        """
+        try:
+            # Normalize and dedupe
+            new_ids = sorted(set(market_ids))
+            if new_ids == sorted(set(self.order_book_ids or [])) and self._connected:
+                logger.info(f"Order book subscriptions unchanged: {new_ids}")
+                return True
+
+            # Disconnect then reconnect with new ids
+            await self.disconnect()
+            self.order_book_ids = new_ids
+            logger.info(f"Reconnecting WS with order_book_ids={new_ids}")
+            await self.connect()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to resubscribe order books to {market_ids}: {e}")
+            return False
+
     async def _run_websocket(self):
         """Run the WebSocket client with proper error handling"""
         try:

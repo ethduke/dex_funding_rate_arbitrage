@@ -1,4 +1,6 @@
 import lighter
+import json
+import os
 from model.exchanges.base import BaseExchange
 from model.exchanges.lighter_ws import LighterWebSocketClient
 from typing import Dict, List, Optional, Any, Callable, Tuple
@@ -274,11 +276,11 @@ class LighterExchange(BaseExchange):
             # Determine per-market base scale (units per 1 base asset)
             base_scale = self._get_base_scale(symbol)
 
-            # Determine the base amount and price without hardcoded constants
+            # Determine the base amount and price; abort if unavailable
             estimated_price = await self._get_estimated_price(symbol)
             if not estimated_price or estimated_price <= 0:
-                logger.warning(f"Could not estimate price for {symbol}; using 1.0 as fallback")
-                estimated_price = 1.0
+                logger.warning(f"Could not estimate price for {symbol}; aborting order placement")
+                return {"error": f"No price available for {symbol}; order aborted"}
 
             # Determine the base amount and price based on dynamic estimate
             if quote_quantity is not None:
@@ -514,6 +516,48 @@ class LighterExchange(BaseExchange):
             self._market_mapping_cache = {}
         return self._market_mapping_cache
 
+    async def refresh_market_mapping(self, force: bool = False) -> Dict[int, str]:
+        """Refresh market mapping from API if empty or force=True, then return it."""
+        if force or not self._get_cached_market_mapping():
+            await self._fetch_market_info()
+        return self._get_cached_market_mapping()
+
+    def get_market_mapping(self) -> Dict[int, str]:
+        """Return current cached mapping of market_id -> symbol."""
+        return dict(self._get_cached_market_mapping())
+
+    def get_reverse_market_mapping(self) -> Dict[str, int]:
+        """Return reverse mapping of symbol -> market_id (upper-cased symbols)."""
+        mapping = self._get_cached_market_mapping()
+        return {symbol.upper(): mid for mid, symbol in mapping.items()}
+
+    def save_market_mapping(self, path: str = "data/lighter_markets.json") -> bool:
+        """Persist current market mapping to disk for warm start."""
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as f:
+                json.dump(self._get_cached_market_mapping(), f, indent=2)
+            logger.info(f"Saved Lighter market mapping to {path}")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to save market mapping to {path}: {e}")
+            return False
+
+    def load_market_mapping(self, path: str = "data/lighter_markets.json") -> bool:
+        """Load market mapping from disk if available (does not call API)."""
+        try:
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    # keys might be strings when loaded from json; coerce to int
+                    self._market_mapping_cache = {int(k): v for k, v in data.items()}
+                    logger.info(f"Loaded Lighter market mapping from {path} ({len(self._market_mapping_cache)} markets)")
+                    return True
+        except Exception as e:
+            logger.warning(f"Failed to load market mapping from {path}: {e}")
+        return False
+
     async def _fetch_market_info(self) -> Dict[int, str]:
         """Dynamically fetch market information from the API"""
         try:
@@ -552,11 +596,82 @@ class LighterExchange(BaseExchange):
 
     async def _get_market_id(self, symbol: str) -> int:
         """Get market ID for a symbol"""
+        # Robust resolution with retries and suffix handling
         await self._ensure_market_mapping_loaded()
-        mapping = self._get_cached_market_mapping()
-        # Create reverse mapping
-        reverse_mapping = {v: k for k, v in mapping.items()}
-        return reverse_mapping.get(symbol.upper(), 1)  # Default to BTC (market 1) if not found
+        reverse_mapping = self.get_reverse_market_mapping()
+
+        # Normalize inputs
+        sym = symbol.upper()
+        # Try direct
+        mid = reverse_mapping.get(sym)
+        if mid is not None:
+            return mid
+        # Try adding/removing -USD
+        if sym.endswith("-USD"):
+            alt = sym[:-4]
+            mid = reverse_mapping.get(alt)
+            if mid is not None:
+                return mid
+        else:
+            alt = f"{sym}-USD"
+            mid = reverse_mapping.get(alt)
+            if mid is not None:
+                return mid
+
+        # As a last resort, force refresh and try again once
+        await self.refresh_market_mapping(force=True)
+        reverse_mapping = self.get_reverse_market_mapping()
+        mid = reverse_mapping.get(sym) or reverse_mapping.get(sym[:-4] if sym.endswith("-USD") else f"{sym}-USD")
+        if mid is not None:
+            return mid
+
+        # Default to BTC if truly unknown to avoid crashes
+        logger.warning(f"Unknown symbol '{symbol}', defaulting to BTC market (1)")
+        return 1
+
+    async def subscribe_symbols(self, symbols: List[str]) -> bool:
+        """Ensure WS is subscribed to the markets backing the provided symbols.
+
+        Converts symbols to market_ids using the current mapping, refreshing if needed,
+        and asks the WS client to resubscribe to those order books.
+        """
+        try:
+            if not self.use_ws or not self.ws_client:
+                logger.warning("WebSocket not enabled; cannot subscribe symbols")
+                return False
+
+            market_ids: List[int] = []
+            for sym in symbols:
+                try:
+                    mid = await self._get_market_id(sym)
+                    if mid is not None and mid not in market_ids:
+                        market_ids.append(mid)
+                except Exception as e:
+                    logger.debug(f"Failed to resolve market id for {sym}: {e}")
+
+            if not market_ids:
+                logger.warning("No market ids resolved for subscription")
+                return False
+
+            # Ask WS client to resubscribe
+            if hasattr(self.ws_client, "resubscribe_order_books"):
+                ok = await self.ws_client.resubscribe_order_books(market_ids)
+                logger.info(f"WS resubscribe to markets {market_ids}: {ok}")
+                return ok
+            else:
+                # Fallback: reconnect with new ids by resetting property if supported
+                try:
+                    await self.ws_client.disconnect()
+                    self.ws_client.order_book_ids = market_ids
+                    await self.ws_client.connect()
+                    logger.info(f"WS reconnected with order_book_ids={market_ids}")
+                    return True
+                except Exception as e:
+                    logger.error(f"Failed to resubscribe WS to {market_ids}: {e}")
+                    return False
+        except Exception as e:
+            logger.error(f"subscribe_symbols error: {e}")
+            return False
 
     def _get_next_client_order_index(self) -> int:
         """Get next client order index for order tracking."""
