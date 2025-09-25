@@ -50,7 +50,6 @@ class Config:
         # Note: Lighter private key is optional - order placement will be disabled if not provided
             
         self.LIGHTER_API_URL = config.get("LIGHTER_API_URL", "https://mainnet.zklighter.elliot.ai/")
-        self.LIGHTER_WS_URL = config.get("LIGHTER_WS_URL", "wss://mainnet.zklighter.elliot.ai/stream")
         self.LIGHTER_API_KEY_INDEX = int(config.get("LIGHTER_API_KEY_INDEX", 2))
         self.LIGHTER_ACCOUNT_INDEX = int(config.get("LIGHTER_ACCOUNT_INDEX", 5725))
 
