@@ -153,6 +153,23 @@ class HyperliquidExchange(BaseExchange):
         
         return 0
 
+    # Unified balance/min-notional
+    def get_available_usd(self, asset: Optional[str] = None) -> float:
+        try:
+            us = self.info.user_state(self.address)
+            cms = us.get("crossMarginSummary", {}) if isinstance(us, dict) else {}
+            withdrawable = float(cms.get("withdrawable", 0)) if cms else 0.0
+            if withdrawable > 0:
+                return withdrawable
+            equity = float(cms.get("accountValue", 0)) if cms else 0.0
+            return equity
+        except Exception:
+            return 0.0
+
+    def get_min_notional_usd(self, asset: str) -> float:
+        # Conservative default: $1
+        return 1.0
+
     def usd_to_token_size(self, asset: str, usd_amount: float) -> float:
         """Convert USD amount to token size with proper decimal precision."""
         return self.get_price_from_api(asset, usd_amount)

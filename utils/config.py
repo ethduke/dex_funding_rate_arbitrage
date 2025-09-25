@@ -34,6 +34,7 @@ class Config:
         self.BACKPACK_API_URL_MARK_PRICES = f"{self.BACKPACK_API_URL}api/v1/markPrices"
         self.BACKPACK_API_URL_POSITION = f"{self.BACKPACK_API_URL}api/v1/position"
         self.BACKPACK_API_URL_ORDER = f"{self.BACKPACK_API_URL}api/v1/order"
+        self.BACKPACK_API_URL_CAPITAL = f"{self.BACKPACK_API_URL}api/v1/capital"
 
         # Hyperliquid credentials
         self.HYPERLIQUID_API_URL = config.get("HYPERLIQUID_API_URL", "https://api.hyperliquid.xyz")

@@ -492,9 +492,31 @@ class FundingArbitrageEngine:
                             logger.warning("Could not fetch Hyperliquid balance; proceeding conservatively")
                             return True
                     elif exchange_name == "Backpack":
-                        # No balance endpoint implemented; proceed conservatively
-                        logger.debug("Backpack balance check not implemented; proceeding conservatively")
-                        return True
+                        try:
+                            bp_bal = backpack.get_balances()
+                            if isinstance(bp_bal, dict) and bp_bal.get("error"):
+                                logger.warning(f"Backpack balance error: {bp_bal.get('error')}")
+                                return False
+                            # Expecting a list/dict of assets; sum available USDC if present
+                            available = 0.0
+                            data = bp_bal
+                            if isinstance(data, dict):
+                                items = data.get("data") or data.get("balances") or data.get("assets") or []
+                            else:
+                                items = data if isinstance(data, list) else []
+                            for item in items:
+                                try:
+                                    sym = (item.get("symbol") or item.get("asset") or "").upper()
+                                    if sym in ("USDC", "USD"):
+                                        available = float(item.get("available", item.get("free", 0)))
+                                        break
+                                except Exception:
+                                    continue
+                            logger.info(f"Backpack available: ${available:.2f}")
+                            return available > 0
+                        except Exception as e:
+                            logger.warning(f"Backpack balance fetch failed: {e}")
+                            return False
                 except Exception as e:
                     logger.warning(f"Balance check failed for {exchange_name}: {e}")
                     return False

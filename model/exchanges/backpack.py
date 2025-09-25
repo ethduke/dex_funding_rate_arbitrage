@@ -169,6 +169,47 @@ class BackpackExchange(BaseExchange):
             return response.json()
         except Exception as e:
             return {"error": f"Failed to parse JSON response: {str(e)}", "response": response.text}
+
+    def get_balances(self) -> Dict:
+        """Get account balances and states (locked/available)."""
+        headers = self.sign_request("balanceQuery")
+        url = f"{CONFIG.BACKPACK_API_URL_CAPITAL}"
+        try:
+            response = requests.get(url, headers=headers, proxies=self.proxies, timeout=10)
+            if response.status_code != 200:
+                logger.error(f"Backpack get_balances API error: {response.status_code} {response.text}")
+                return {"error": f"status {response.status_code}", "response": response.text}
+            data = response.json()
+            return data
+        except requests.Timeout:
+            logger.error("Request to Backpack balances timed out")
+            return {"error": "timeout"}
+        except Exception as e:
+            logger.error(f"Error fetching Backpack balances: {e}")
+            return {"error": str(e)}
+
+    # Unified balance/min-notional
+    def get_available_usd(self, asset: Optional[str] = None) -> float:
+        try:
+            data = self.get_balances()
+            if isinstance(data, dict) and data.get("error"):
+                return 0.0
+            items = []
+            if isinstance(data, dict):
+                items = data.get("data") or data.get("balances") or data.get("assets") or []
+            elif isinstance(data, list):
+                items = data
+            for item in items:
+                sym = (item.get("symbol") or item.get("asset") or "").upper()
+                if sym in ("USDC", "USD"):
+                    return float(item.get("available", item.get("free", 0)))
+        except Exception:
+            return 0.0
+        return 0.0
+
+    def get_min_notional_usd(self, asset: str) -> float:
+        # Conservative default: $1
+        return 1.0
     
     def place_market_order(
         self,

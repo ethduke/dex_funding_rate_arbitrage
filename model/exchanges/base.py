@@ -55,3 +55,18 @@ class BaseExchange(ABC):
     def subscribe_to_funding_updates(self, callback: Callable) -> Any:
         """Subscribe to funding rate updates."""
         pass
+
+    # Unified balance/min-notional interface
+    def get_available_usd(self, asset: Optional[str] = None) -> float:
+        """Return immediately available USD-equivalent collateral.
+
+        Default implementation returns 0. Exchanges should override.
+        """
+        return 0.0
+
+    def get_min_notional_usd(self, asset: str) -> float:
+        """Return minimum USD notional required to open a position for asset.
+
+        Default implementation returns 0. Exchanges should override if needed.
+        """
+        return 0.0

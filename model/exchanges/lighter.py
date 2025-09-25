@@ -787,3 +787,13 @@ class LighterExchange(BaseExchange):
             logger.error(f"Failed to get real balance: {e}")
             return {'error': f'Failed to get real balance: {str(e)}'}
 
+    # Unified balance/min-notional
+    def get_available_usd(self, asset: Optional[str] = None) -> float:
+        # Synchronous wrapper that uses the last known call if available
+        # For simplicity, return 0 if not retrievable synchronously.
+        return 0.0
+
+    def get_min_notional_usd(self, asset: str) -> float:
+        # Conservative default: $1
+        return 1.0
+
