@@ -1160,10 +1160,24 @@ class FundingArbitrageEngine:
         
         while True:
             try:
-                # Get Backpack rates
+                # Get Backpack rates (normalize response to a list first)
                 bp_data = backpack.get_mark_prices()
-                for item in bp_data:
-                    if item.get("symbol") == bp_symbol:
+                bp_items = []
+                if isinstance(bp_data, list):
+                    bp_items = bp_data
+                elif isinstance(bp_data, dict):
+                    # Skip on explicit error
+                    if bp_data.get("error"):
+                        logger.warning(f"Backpack mark prices error: {bp_data.get('error')}")
+                    else:
+                        # Common containers seen: data / markPrices
+                        if isinstance(bp_data.get("data"), list):
+                            bp_items = bp_data["data"]
+                        elif isinstance(bp_data.get("markPrices"), list):
+                            bp_items = bp_data["markPrices"]
+
+                for item in bp_items:
+                    if isinstance(item, dict) and item.get("symbol") == bp_symbol:
                         rate = float(item.get("fundingRate", 0))
                         await funding_rate_queue.put(("Backpack", rate, time.time()))
                 
