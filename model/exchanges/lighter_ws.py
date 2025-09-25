@@ -2,321 +2,330 @@ import asyncio
 import json
 from typing import Callable, List, Dict, Optional
 from utils.logger import setup_logger
-from websockets.client import connect as connect_async
-from lighter.configuration import Configuration
+import lighter
+from lighter import WsClient
+from websockets.client import connect as _ws_connect_async
 
 logger = setup_logger(__name__)
 
 
+class _PatchedWsClient(WsClient):
+    """Subclass of Lighter WsClient that disables protocol-level pings.
+
+    Lighter expects application-level ping/pong messages rather than
+    WebSocket control frame pings. We set ping_interval=None so the client
+    does not send periodic pings that the server will not answer.
+    """
+
+    async def run_async(self):
+        ws = await _ws_connect_async(self.base_url, ping_interval=None, ping_timeout=None)
+        self.ws = ws
+
+        async for message in ws:
+            await self.on_message_async(ws, message)
+
+
 class LighterWebSocketClient:
-    def __init__(self, order_book_ids: List[int] = None, account_ids: List[int] = None,
-                 on_order_book_update: Callable = None, on_account_update: Callable = None,
-                 on_market_stats_update: Callable = None, market_mapping: Dict[int, str] = None):
+    def __init__(self, account_ids: List[int] = None,
+                 on_account_update: Callable = None, 
+                 on_order_book_update: Callable = None, 
+                 market_mapping: Dict[int, str] = None,
+                 order_book_ids: List[int] = None):
         
         # Provide default subscriptions to avoid "No subscriptions provided" error
-        if order_book_ids is None:
-            order_book_ids = [0, 1]  # Default to ETH and BTC markets
         if account_ids is None:
             account_ids = [1]  # Default account ID
+        if order_book_ids is None:
+            order_book_ids = [1, 2, 3]  # Default market IDs
         
-        # Get host from configuration
-        host = Configuration.get_default().host.replace("https://", "")
-        self.base_url = f"wss://{host}/stream"
+        self.account_ids = account_ids
+        self.order_book_ids = order_book_ids
         
-        self.subscriptions = {
-            "order_books": order_book_ids,
-            "accounts": account_ids,
-        }
-        
-        if len(order_book_ids) == 0 and len(account_ids) == 0:
-            raise Exception("No subscriptions provided.")
-        
-        self.order_book_states = {}
-        self.account_states = {}
+        # Store latest market data
         self._market_stats = {}
         self._market_mapping = market_mapping or {}
         
-        self.on_order_book_update = on_order_book_update or self._default_order_book_handler
+        # Callbacks
         self.on_account_update = on_account_update or self._default_account_handler
-        self.on_market_stats_update = on_market_stats_update or self._default_market_stats_handler
+        self.on_order_book_update = on_order_book_update or self._default_order_book_handler
         
-        self.ws = None
-        self._task = None
+        # Lighter SDK WsClient
+        self.ws_client = None
+        self.ws_task = None
         self._connected = False
         self._stop_event = asyncio.Event()
 
     async def connect(self):
-        """Connect to the WebSocket server and start listening."""
-        if self.ws and self.ws.open:
-            return
+        """Connect to the WebSocket server using Lighter SDK WsClient."""
+        if self._connected:
+            return True
 
         try:
-            # Connect with proper ping/pong settings
-            self.ws = await connect_async(
-                self.base_url,
-                ping_interval=30,  # Send ping every 30 seconds
-                ping_timeout=10,   # Wait 10 seconds for pong
-                close_timeout=10   # Wait 10 seconds for close
+            logger.info(f"🔌 Creating WebSocket client with account_ids: {self.account_ids}, order_book_ids: {self.order_book_ids}")
+            
+            # Create Lighter SDK WsClient with proper error handling
+            # Use a patched client that handles app-level ping/pong and disables protocol pings
+            self.ws_client = _PatchedWsClient(
+                account_ids=self.account_ids,
+                order_book_ids=self.order_book_ids,
+                on_account_update=self._handle_account_update,
+                on_order_book_update=self._handle_order_book_update
             )
-            self._connected = True
-            logger.info("Lighter WebSocket connected successfully")
             
-            # Subscribe to channels
-            await self._subscribe_to_channels()
+            # Override the handle_unhandled_message method to prevent errors
+            self.ws_client.handle_unhandled_message = self._handle_unhandled_message
             
-            # Start listening task
-            self._task = asyncio.create_task(self._listen())
+            # Start the WebSocket client in a task to handle errors
+            try:
+                # Note: run_async() is blocking, so we'll run it in a task
+                self.ws_task = asyncio.create_task(self._run_websocket())
+                self._connected = True
+                logger.info("✅ Lighter WebSocket connected successfully using SDK")
+                
+                # Wait a bit to see if connection is stable
+                await asyncio.sleep(2)
+                
+                # Log WebSocket client state
+                logger.info(f"🔍 WebSocket client state after connection:")
+                logger.info(f"🔍 - Client exists: {self.ws_client is not None}")
+                logger.info(f"🔍 - Account IDs: {getattr(self.ws_client, 'account_ids', 'N/A')}")
+                logger.info(f"🔍 - Order book IDs: {getattr(self.ws_client, 'order_book_ids', 'N/A')}")
+                
+                return True
+                
+            except Exception as ws_error:
+                logger.error(f"WebSocket task failed: {ws_error}")
+                self._connected = False
+                raise
             
         except Exception as e:
             logger.error(f"WebSocket connection failed: {e}")
             self._connected = False
             raise
 
+    async def _run_websocket(self):
+        """Run the WebSocket client with proper error handling"""
+        try:
+            logger.info("🔌 Starting WebSocket client...")
+            logger.info(f"🔌 Account IDs: {self.account_ids}")
+            logger.info(f"🔌 Order book IDs: {self.order_book_ids}")
+            await self.ws_client.run_async()
+        except asyncio.CancelledError:
+            logger.info("WebSocket task cancelled")
+            raise
+        except Exception as e:
+            # Don't treat "Failed to fetch" as a critical error - it's common in WebSocket connections
+            if "Failed to fetch" in str(e) or "Unhandled message" in str(e):
+                logger.debug(f"WebSocket message handling: {e}")
+                # Continue running - this is not a fatal error
+                return
+            else:
+                logger.error(f"WebSocket runtime error: {e}")
+                self._connected = False
+                raise
+
     async def disconnect(self):
         """Disconnect the WebSocket connection."""
-        if self._task:
-            self._stop_event.set()
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
-            self._task = None
-
-        if self.ws and self.ws.open:
-            try:
-                await self.ws.close()
-            except Exception as e:
-                logger.error(f"Error closing websocket: {e}")
-        
-        self.ws = None
-        self._connected = False
-
-    async def _subscribe_to_channels(self):
-        """Subscribe to all channels"""
-        if not self.ws or not self.ws.open:
-            logger.warning("WebSocket not connected. Cannot subscribe.")
-            return
-            
-        # Subscribe to order books
-        for market_id in self.subscriptions["order_books"]:
-            await self.ws.send(
-                json.dumps({"type": "subscribe", "channel": f"order_book/{market_id}"})
-            )
-        
-        # Subscribe to accounts
-        for account_id in self.subscriptions["accounts"]:
-            await self.ws.send(
-                json.dumps({"type": "subscribe", "channel": f"account_all/{account_id}"})
-            )
-        
-        # Subscribe to market stats for all markets
-        await self.ws.send(
-            json.dumps({"type": "subscribe", "channel": "market_stats/all"})
-        )
-
-    async def _listen(self):
-        """Listen for messages and handle them."""
         try:
-            while not self._stop_event.is_set():
+            # Cancel the WebSocket task if it exists
+            if hasattr(self, 'ws_task') and self.ws_task:
+                self.ws_task.cancel()
                 try:
-                    message = await self.ws.recv()
-                    await self.on_message_async(self.ws, message)
+                    await self.ws_task
                 except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    logger.error(f"Error in WebSocket listener: {e}")
-                    await asyncio.sleep(1)  # Avoid tight loop on errors
-        finally:
-            pass
-
-    async def on_message_async(self, ws, message):
-        """Handle incoming WebSocket messages"""
-        try:
-            if isinstance(message, str):
-                message = json.loads(message)
+                    pass
+                logger.info("WebSocket task cancelled")
             
-            message_type = message.get("type")
-            
-            if message_type == "connected":
-                await self._subscribe_to_channels()
-            elif message_type == "subscribed/order_book":
-                self.handle_subscribed_order_book(message)
-            elif message_type == "update/order_book":
-                self.handle_update_order_book(message)
-            elif message_type == "subscribed/account_all":
-                self.handle_subscribed_account(message)
-            elif message_type == "update/account_all":
-                self.handle_update_account(message)
-            elif message_type == "subscribed/market_stats":
-                self.handle_subscribed_market_stats(message)
-            elif message_type == "update/market_stats":
-                self.handle_update_market_stats(message)
-            else:
-                self.handle_unhandled_message(message)
+            # Stop the WebSocket client
+            if self.ws_client:
+                if hasattr(self.ws_client, 'stop'):
+                    self.ws_client.stop()
+                self._connected = False
+                logger.info("Lighter WebSocket disconnected")
                 
         except Exception as e:
-            logger.error(f"Error processing message: {e}")
-
-    def handle_subscribed_order_book(self, message):
-        """Handle order book subscription confirmation"""
-        market_id = message["channel"].split(":")[1]
-        self.order_book_states[market_id] = message["order_book"]
-        if self.on_order_book_update:
-            self.on_order_book_update(market_id, self.order_book_states[market_id])
-
-    def handle_update_order_book(self, message):
-        """Handle order book updates"""
-        market_id = message["channel"].split(":")[1]
-        self.update_order_book_state(market_id, message["order_book"])
-        if self.on_order_book_update:
-            self.on_order_book_update(market_id, self.order_book_states[market_id])
-
-    def update_order_book_state(self, market_id, order_book):
-        """Update order book state"""
-        if market_id not in self.order_book_states:
-            self.order_book_states[market_id] = {"asks": [], "bids": []}
-        
-        self.update_orders(
-            order_book["asks"], self.order_book_states[market_id]["asks"]
-        )
-        self.update_orders(
-            order_book["bids"], self.order_book_states[market_id]["bids"]
-        )
-
-    def update_orders(self, new_orders, existing_orders):
-        """Update orders in the order book"""
-        for new_order in new_orders:
-            is_new_order = True
-            for existing_order in existing_orders:
-                if new_order["price"] == existing_order["price"]:
-                    is_new_order = False
-                    existing_order["size"] = new_order["size"]
-                    if float(new_order["size"]) == 0:
-                        existing_orders.remove(existing_order)
-                    break
-            if is_new_order:
-                existing_orders.append(new_order)
-
-        # Remove zero-size orders
-        existing_orders[:] = [
-            order for order in existing_orders if float(order["size"]) > 0
-        ]
-
-    def handle_subscribed_account(self, message):
-        """Handle account subscription confirmation"""
-        account_id = message["channel"].split(":")[1]
-        self.account_states[account_id] = message
-        if self.on_account_update:
-            self.on_account_update(account_id, self.account_states[account_id])
-
-    def handle_update_account(self, message):
-        """Handle account updates"""
-        account_id = message["channel"].split(":")[1]
-        self.account_states[account_id] = message
-        if self.on_account_update:
-            self.on_account_update(account_id, self.account_states[account_id])
-
-    def handle_subscribed_market_stats(self, message):
-        """Handle market stats subscription confirmation"""
-        logger.debug("Subscribed to market stats")
-
-    def handle_update_market_stats(self, message):
-        """Handle market stats updates"""
-        try:
-            market_stats = message.get("market_stats", {})
-            market_id = market_stats.get("market_id")
-            
-            if market_id is not None:
-                symbol = self._get_symbol_by_market_id(market_id)
-                funding_rate = float(market_stats.get("current_funding_rate", 0))
-                mark_price = float(market_stats.get("mark_price", 0))
-                index_price = float(market_stats.get("index_price", 0))
-                funding_timestamp = market_stats.get("funding_timestamp", 0)
-                
-                # Store the latest market stats
-                self._market_stats[market_id] = {
-                    "symbol": symbol,
-                    "funding_rate": funding_rate,
-                    "mark_price": mark_price,
-                    "index_price": index_price,
-                    "funding_timestamp": funding_timestamp,
-                    "market_stats": market_stats
-                }
-                
-                if self.on_market_stats_update:
-                    self.on_market_stats_update(market_stats)
-                    
-        except Exception as e:
-            logger.error(f"Error processing market stats: {e}")
-
-    def handle_unhandled_message(self, message):
-        """Handle unhandled messages"""
-        # Only log at debug level to reduce noise
-        pass
-
-    def _default_order_book_handler(self, market_id, order_book):
-        """Default order book update handler"""
-        # Reduced logging - only log significant updates
-        pass
-
-    def _default_account_handler(self, account_id, account):
-        """Default account update handler"""
-        # Reduced logging - only log significant updates
-        pass
-
-    def _default_market_stats_handler(self, market_stats: Dict):
-        """Default market stats handler"""
-        # Only log funding rate changes, not the full market stats
-        market_id = market_stats.get("market_id")
-        funding_rate = market_stats.get("current_funding_rate")
-        if market_id is not None and funding_rate is not None:
-            symbol = self._get_symbol_by_market_id(market_id)
-            logger.info(f"Market Stats [{symbol}]: Funding Rate={funding_rate}")
-
-    def set_market_mapping(self, market_mapping: Dict[int, str]):
-        """Set market mapping from parent exchange"""
-        self._market_mapping = market_mapping
-
-    def _get_symbol_by_market_id(self, market_id: int) -> str:
-        """Get symbol name by market ID"""
-        return self._market_mapping.get(market_id, f"UNKNOWN_{market_id}")
-
-    def get_market_stats(self) -> Dict:
-        """Get all current market stats"""
-        return self._market_stats
-
-    def get_funding_rates(self) -> Dict[str, Dict]:
-        """Get funding rates in normalized format"""
-        result = {}
-        for market_id, stats in self._market_stats.items():
-            symbol = stats["symbol"]
-            result[symbol] = {
-                "rate": stats["funding_rate"],
-                "mark_price": stats["mark_price"],
-                "index_price": stats["index_price"],
-                "next_funding_time": stats["funding_timestamp"],
-                "exchange": "Lighter"
-            }
-        return result
-
-    def get_latest_price(self, market_id: int) -> Optional[float]:
-        """Get latest price for a market from WebSocket data."""
-        try:
-            # Convert market_id to string since _market_stats uses string keys
-            market_key = str(market_id)
-            market_stats = self._market_stats.get(market_key)
-            if market_stats and 'mark_price' in market_stats:
-                return float(market_stats['mark_price'])
-            return None
-        except Exception as e:
-            logger.debug(f"Error getting latest price for market {market_id}: {e}")
-            return None
+            logger.error(f"Error disconnecting WebSocket: {e}")
 
     def is_connected(self) -> bool:
-        """Check if WebSocket is connected"""
-        return self._connected and self.ws and self.ws.open
+        """Check if WebSocket is connected."""
+        return self._connected
 
-    async def close(self):
-        """Close the WebSocket connection"""
-        await self.disconnect()
+    def set_market_mapping(self, market_mapping: Dict[int, str]):
+        """Set market mapping for symbol resolution."""
+        self._market_mapping = market_mapping
+
+    def get_market_stats(self, market_id: int) -> Dict:
+        """Get market stats for a market."""
+        # Convert market_id to string since _market_stats uses string keys
+        market_key = str(market_id)
+        return self._market_stats.get(market_key, {})
+
+    def get_latest_price(self, market_id: int) -> Optional[float]:
+        """Get latest price for a market."""
+        # Convert market_id to string since _market_stats uses string keys
+        market_key = str(market_id)
+        market_stats = self._market_stats.get(market_key)
+        if market_stats and 'mid_price' in market_stats:
+            return market_stats['mid_price']
+        return None
+
+    def _handle_account_update(self, account_id: int, account: Dict):
+        """Handle account updates from Lighter SDK."""
+        try:
+            # Call the callback
+            if self.on_account_update:
+                self.on_account_update(account_id, account)
+                
+        except Exception as e:
+            logger.error(f"Error handling account update: {e}")
+
+    def _handle_order_book_update(self, order_book_id: int, order_book):
+        """Handle order book updates from Lighter SDK."""
+        try:
+            # Log order book updates at debug level to reduce spam
+            logger.debug(f"🔔 ORDER BOOK UPDATE RECEIVED for market {order_book_id}")
+            logger.debug(f"🔔 Data type: {type(order_book)}")
+            logger.debug(f"🔔 Data content: {order_book}")
+            
+            # Debug: Log the raw order book data structure
+            if order_book_id == 3:  # XRP
+                logger.debug(f"🔍 DEBUG - Raw order book data for XRP (market 3):")
+                logger.debug(f"🔍 DEBUG - Type: {type(order_book)}")
+                logger.debug(f"🔍 DEBUG - Content: {order_book}")
+                logger.debug(f"🔍 DEBUG - Has bids attr: {hasattr(order_book, 'bids')}")
+                logger.debug(f"🔍 DEBUG - Has asks attr: {hasattr(order_book, 'asks')}")
+                if hasattr(order_book, 'bids'):
+                    logger.debug(f"🔍 DEBUG - Bids: {order_book.bids}")
+                if hasattr(order_book, 'asks'):
+                    logger.debug(f"🔍 DEBUG - Asks: {order_book.asks}")
+            
+            # Extract price from order book data
+            mid_price = None
+            
+            # Handle different order book data formats
+            if hasattr(order_book, 'bids') and hasattr(order_book, 'asks'):
+                # Object with bids/asks attributes
+                if order_book.bids and order_book.asks:
+                    best_bid = self._extract_price(order_book.bids[0])
+                    best_ask = self._extract_price(order_book.asks[0])
+                    if best_bid and best_ask and best_bid > 0 and best_ask > 0:
+                        mid_price = (best_bid + best_ask) / 2
+                        if order_book_id == 3:  # XRP
+                            logger.info(f"🔍 DEBUG - Extracted prices: bid={best_bid}, ask={best_ask}, mid={mid_price}")
+            elif isinstance(order_book, dict) and 'bids' in order_book and 'asks' in order_book:
+                # Dictionary format
+                if order_book['bids'] and order_book['asks']:
+                    best_bid = self._extract_price(order_book['bids'][0])
+                    best_ask = self._extract_price(order_book['asks'][0])
+                    if best_bid and best_ask and best_bid > 0 and best_ask > 0:
+                        mid_price = (best_bid + best_ask) / 2
+                        if order_book_id == 3:  # XRP
+                            logger.info(f"🔍 DEBUG - Extracted prices from dict: bid={best_bid}, ask={best_ask}, mid={mid_price}")
+            
+            # Store the mid price if we successfully extracted it
+            if mid_price:
+                self._market_stats[str(order_book_id)] = {'mid_price': mid_price}
+                # Only log XRP price updates
+                if order_book_id == 3:  # XRP
+                    logger.debug(f"📈 XRP price: ${mid_price:.6f}")
+                    logger.debug(f"🔍 Stored in _market_stats: {self._market_stats}")
+            else:
+                if order_book_id == 3:  # XRP
+                    logger.debug(f"🔍 No mid_price extracted for XRP (market 3)")
+                    logger.debug(f"🔍 DEBUG - Order book structure analysis:")
+                    logger.debug(f"🔍 DEBUG - Is dict: {isinstance(order_book, dict)}")
+                    if isinstance(order_book, dict):
+                        logger.debug(f"🔍 DEBUG - Dict keys: {list(order_book.keys())}")
+                    logger.debug(f"🔍 DEBUG - Dir attributes: {[attr for attr in dir(order_book) if not attr.startswith('_')]}")
+            
+            # Call the callback
+            if self.on_order_book_update:
+                self.on_order_book_update(order_book_id, order_book)
+                
+        except Exception as e:
+            logger.error(f"Error handling order book update for market {order_book_id}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+    
+    def _extract_price(self, price_data):
+        """Extract price from various data formats."""
+        try:
+            if isinstance(price_data, (int, float)):
+                return float(price_data)
+            elif isinstance(price_data, str):
+                return float(price_data)
+            elif isinstance(price_data, dict):
+                # Try common price field names
+                for field in ['price', 'p', 'px', 'amount', 'size']:
+                    if field in price_data:
+                        return float(price_data[field])
+                # If no price field found, try to convert the dict values
+                if len(price_data) > 0:
+                    first_value = list(price_data.values())[0]
+                    return float(first_value)
+            elif isinstance(price_data, list) and len(price_data) > 0:
+                return float(price_data[0])
+            elif hasattr(price_data, 'price'):
+                return float(price_data.price)
+            else:
+                logger.debug(f"Unknown price data format: {type(price_data)} - {price_data}")
+                return None
+        except (ValueError, TypeError, IndexError) as e:
+            logger.debug(f"Failed to extract price from {price_data}: {e}")
+            return None
+
+    def _default_account_handler(self, account_id: int, account: Dict):
+        """Default account update handler."""
+        logger.debug(f"Account update for account {account_id}")
+
+    def _default_order_book_handler(self, order_book_id: int, order_book: Dict):
+        """Default order book update handler."""
+        logger.debug(f"Order book update for order book {order_book_id}")
+    
+    def _handle_unhandled_message(self, message):
+        """Handle unhandled WebSocket messages gracefully."""
+        try:
+            # Respond to application-level ping with pong to satisfy Lighter WS policy
+            if isinstance(message, dict) and message.get("type") == "ping":
+                try:
+                    if getattr(self.ws_client, "ws", None) is not None:
+                        # Send app-level pong
+                        send_coro = self.ws_client.ws.send(json.dumps({"type": "pong"}))
+                        if asyncio.iscoroutine(send_coro):
+                            # If ws.send is async (it is), await it safely in background
+                            asyncio.create_task(send_coro)
+                    return
+                except Exception as ping_err:
+                    logger.debug(f"Failed to respond to ping: {ping_err}")
+
+            # Log unhandled messages at debug level to avoid spam
+            if isinstance(message, dict) and 'error' in message:
+                error_code = message['error'].get('code', 'unknown')
+                error_msg = message['error'].get('message', 'unknown error')
+                logger.debug(f"WebSocket error message: {error_code} - {error_msg}")
+            else:
+                logger.debug(f"Unhandled WebSocket message: {type(message)} - {message}")
+        except Exception as e:
+            logger.debug(f"Error handling unhandled message: {e}")
+
+    async def subscribe_to_market_updates(self, market_ids: List[int], callback: Callable):
+        """Subscribe to market updates for specific markets."""
+        try:
+            # Update account IDs to include new markets
+            self.account_ids = list(set(self.account_ids + market_ids))
+            
+            if self.ws_client and hasattr(self.ws_client, 'subscribe_to_market_updates'):
+                success = await self.ws_client.subscribe_to_market_updates(market_ids, callback)
+                if success:
+                    logger.info(f"Subscribed to market updates for markets: {market_ids}")
+                    return True
+                else:
+                    logger.error(f"Failed to subscribe to market updates for markets: {market_ids}")
+                    return False
+            else:
+                logger.warning("WebSocket client not available for market updates")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error subscribing to market updates: {e}")
+            return False
