@@ -2,7 +2,6 @@ import asyncio
 import json
 from typing import Callable, List, Dict, Optional
 from utils.logger import setup_logger
-import lighter
 from lighter import WsClient
 from websockets.client import connect as _ws_connect_async
 
@@ -267,8 +266,6 @@ class LighterWebSocketClient:
                 
         except Exception as e:
             logger.error(f"Error handling order book update for market {order_book_id}: {e}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
     
     def _extract_price(self, price_data):
         """Extract price from various data formats."""

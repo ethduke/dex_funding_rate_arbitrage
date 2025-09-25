@@ -467,6 +467,44 @@ class FundingArbitrageEngine:
             
             # Check available balances on both exchanges first
             logger.info("Checking available balances on both exchanges...")
+
+            async def _has_balance(exchange_name: str) -> bool:
+                try:
+                    if exchange_name == "Lighter":
+                        bal = await lighter.get_real_balance()
+                        if isinstance(bal, dict) and "error" not in bal:
+                            free = float(bal.get("free_collateral", 0))
+                            total = float(bal.get("total_asset_value", 0))
+                            logger.info(f"{exchange_name} free: ${free:.2f}, total: ${total:.2f}")
+                            return free > 0
+                        return False
+                    elif exchange_name == "Hyperliquid":
+                        # Try to use SDK user_state to infer withdrawable/equity
+                        try:
+                            us = hyperliquid.info.user_state(hyperliquid.address)
+                            cms = us.get("crossMarginSummary", {}) if isinstance(us, dict) else {}
+                            withdrawable = float(cms.get("withdrawable", 0)) if cms else 0.0
+                            equity = float(cms.get("accountValue", 0)) if cms else 0.0
+                            logger.info(f"{exchange_name} withdrawable: ${withdrawable:.2f}, equity: ${equity:.2f}")
+                            return (withdrawable > 0) or (equity > 0)
+                        except Exception:
+                            # If we cannot determine, do not block
+                            logger.warning("Could not fetch Hyperliquid balance; proceeding conservatively")
+                            return True
+                    elif exchange_name == "Backpack":
+                        # No balance endpoint implemented; proceed conservatively
+                        logger.debug("Backpack balance check not implemented; proceeding conservatively")
+                        return True
+                except Exception as e:
+                    logger.warning(f"Balance check failed for {exchange_name}: {e}")
+                    return False
+
+            # If either side appears to have no balance, skip this opportunity
+            lb = await _has_balance(long_exchange)
+            sb = await _has_balance(short_exchange)
+            if not (lb and sb):
+                logger.warning(f"Insufficient balance on one side (LONG {long_exchange}: {lb}, SHORT {short_exchange}: {sb}) - skipping this opportunity")
+                return None
                         
             # Detail what we're going to do
             logger.info(f"TRADE PLAN: LONG on {long_exchange}, SHORT on {short_exchange} for {asset}")

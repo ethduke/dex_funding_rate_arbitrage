@@ -1,6 +1,7 @@
 import lighter
 import json
 import os
+import time
 from model.exchanges.base import BaseExchange
 from model.exchanges.lighter_ws import LighterWebSocketClient
 from typing import Dict, List, Optional, Any, Callable, Tuple
@@ -449,7 +450,6 @@ class LighterExchange(BaseExchange):
         """Get PnL data"""
         try:
             await self._ensure_account_initialized()
-            import time
             current_time = int(time.time() * 1000)  # Current time in milliseconds
             start_time = current_time - (24 * 60 * 60 * 1000)  # 24 hours ago
             

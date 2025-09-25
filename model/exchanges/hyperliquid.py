@@ -2,6 +2,7 @@ from typing import Dict, List, Callable, Optional, Any
 import eth_account
 import logging
 import requests
+import math
 from hyperliquid.exchange import Exchange
 from hyperliquid.info import Info
 from utils.config import CONFIG
@@ -144,7 +145,6 @@ class HyperliquidExchange(BaseExchange):
                 sz_decimals = self.get_sz_decimals(asset)
                 
                 # Round to the appropriate decimal places to avoid precision errors
-                import math
                 token_amount = math.floor(token_amount * (10 ** sz_decimals)) / (10 ** sz_decimals)
                 
                 return token_amount
@@ -179,7 +179,6 @@ class HyperliquidExchange(BaseExchange):
             # Handle precision errors by rounding size to appropriate decimals
             if size > 0:
                 sz_decimals = self.get_sz_decimals(symbol)
-                import math
                 size = math.floor(size * (10 ** sz_decimals)) / (10 ** sz_decimals)
                 
                 # If size becomes 0 after rounding, return error
