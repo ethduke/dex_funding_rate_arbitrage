@@ -106,7 +106,7 @@ class BackpackExchange(BaseExchange):
         if params:
             url += f"?{urllib.parse.urlencode(params)}"
         
-        response = requests.get(url, headers=headers, proxies=self.proxies)
+        response = requests.get(url, headers=headers, proxies=self.proxies, timeout=10)
         return response.json()
     
     def get_funding_rates(self) -> Dict:
@@ -156,7 +156,7 @@ class BackpackExchange(BaseExchange):
         headers = self.sign_request("positionQuery")
         url = f"{CONFIG.BACKPACK_API_URL_POSITION}"
         
-        response = requests.get(url, headers=headers, proxies=self.proxies)
+        response = requests.get(url, headers=headers, proxies=self.proxies, timeout=10)
         
         # Check response status and content before parsing JSON
         if response.status_code != 200:
@@ -289,7 +289,7 @@ class BackpackExchange(BaseExchange):
         # Make the request
         url = f"{CONFIG.BACKPACK_API_URL_ORDER}"
         
-        response = requests.post(url, headers=headers, json=payload, proxies=self.proxies)
+        response = requests.post(url, headers=headers, json=payload, proxies=self.proxies, timeout=10)
         
         # Check response status and content before parsing JSON
         if response.status_code != 200:
