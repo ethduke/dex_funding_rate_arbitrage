@@ -220,60 +220,28 @@ class BackpackExchange(BaseExchange):
             logger.error(f"Error fetching Backpack collateral: {e}")
             return {"error": str(e)}
 
-    # Unified balance/min-notional
-    def get_available_usd(self, asset: Optional[str] = None) -> float:
+    def get_equity_usd(self) -> float:
+        """Return net equity or available equity from collateral endpoint when possible."""
         try:
-            data = self.get_balances()
-            if isinstance(data, dict) and data.get("error"):
+            coll = self.get_collateral()
+            if isinstance(coll, dict) and coll.get("error"):
                 return 0.0
-            items = []
-            mapping = None
-            if isinstance(data, dict):
-                # Two common shapes: list container OR mapping of symbols -> {available, locked, ...}
-                items = data.get("data") or data.get("balances") or data.get("assets") or []
-                if not items:
-                    mapping = data  # mapping variant
-            elif isinstance(data, list):
-                items = data
-            # Prefer USD over USDC
-            def extract_available(it: Dict) -> float:
-                # Common fields for available/total/locked
-                if it.get("available") is not None:
-                    return float(it.get("available"))
-                if it.get("free") is not None:
-                    return float(it.get("free"))
-                total = it.get("balance") or it.get("total") or it.get("amount")
-                locked = it.get("locked") or it.get("inOrder") or 0
-                try:
-                    if total is not None:
-                        return float(total) - float(locked or 0)
-                except Exception:
-                    return 0.0
-                return 0.0
-
-            # First pass: USD
-            if items:
-                for it in items:
-                    sym = (it.get("symbol") or it.get("asset") or it.get("currency") or it.get("code") or "").upper()
-                    if sym == "USD":
-                        return extract_available(it)
-            elif mapping:
-                it = mapping.get("USD") or mapping.get("usd")
-                if isinstance(it, dict):
-                    return extract_available(it)
-            # Second pass: USDC
-            if items:
-                for it in items:
-                    sym = (it.get("symbol") or it.get("asset") or it.get("currency") or it.get("code") or "").upper()
-                    if sym == "USDC":
-                        return extract_available(it)
-            elif mapping:
-                it = mapping.get("USDC") or mapping.get("usdc")
-                if isinstance(it, dict):
-                    return extract_available(it)
+            # Try common fields from docs: netEquityAvailable, netEquity
+            for key in ("netEquityAvailable", "netEquity", "assetsValue"):
+                val = coll.get(key)
+                if val is not None:
+                    try:
+                        return float(val)
+                    except Exception:
+                        continue
         except Exception:
             return 0.0
         return 0.0
+
+    # Unified balance/min-notional
+    def get_available_usd(self, asset: Optional[str] = None) -> float:
+        # Use collateral equity for gating
+        return self.get_equity_usd()
 
     def get_min_notional_usd(self, asset: str) -> float:
         # Conservative default: $1

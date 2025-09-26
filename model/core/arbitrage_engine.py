@@ -493,29 +493,11 @@ class FundingArbitrageEngine:
                             return True
                     elif exchange_name == "Backpack":
                         try:
-                            bp_bal = backpack.get_balances()
-                            if isinstance(bp_bal, dict) and bp_bal.get("error"):
-                                logger.warning(f"Backpack balance error: {bp_bal.get('error')}")
-                                return False
-                            # Expecting a list/dict of assets; sum available USDC if present
-                            available = 0.0
-                            data = bp_bal
-                            if isinstance(data, dict):
-                                items = data.get("data") or data.get("balances") or data.get("assets") or []
-                            else:
-                                items = data if isinstance(data, list) else []
-                            for item in items:
-                                try:
-                                    sym = (item.get("symbol") or item.get("asset") or "").upper()
-                                    if sym in ("USDC", "USD"):
-                                        available = float(item.get("available", item.get("free", 0)))
-                                        break
-                                except Exception:
-                                    continue
-                            logger.info(f"Backpack available: ${available:.2f}")
-                            return available > 0
+                            equity = backpack.get_equity_usd()
+                            logger.info(f"Backpack equity: ${equity:.2f}")
+                            return equity > 0
                         except Exception as e:
-                            logger.warning(f"Backpack balance fetch failed: {e}")
+                            logger.warning(f"Backpack collateral fetch failed: {e}")
                             return False
                 except Exception as e:
                     logger.warning(f"Balance check failed for {exchange_name}: {e}")

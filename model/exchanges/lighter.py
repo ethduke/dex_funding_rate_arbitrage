@@ -133,9 +133,7 @@ class LighterExchange(BaseExchange):
             try:
                 # Get private key from environment (you'll need to set this)
                 private_key = CONFIG.get('LIGHTER_PRIVATE_KEY')
-                if private_key:
-                    logger.info(f"Raw private key from config: {private_key[:10]}... (length: {len(private_key)})")
-                    
+                if private_key:                    
                     # Validate private key format
                     if not self._is_valid_private_key(private_key):
                         logger.error("Invalid private key format - must be 40 bytes (80 hex characters)")
