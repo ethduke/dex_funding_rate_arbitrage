@@ -122,7 +122,24 @@ class BackpackWebSocketClient:
                 return
 
         try:
-            logger.debug(f"Sending subscription payload for {stream_name}: {json.dumps(payload)}")
+            # Never log secrets. If signature exists, mask sensitive values before logging
+            if "signature" in payload:
+                try:
+                    sig = payload.get("signature")
+                    if isinstance(sig, list) and len(sig) >= 4:
+                        masked_sig = ["***", "***", str(sig[2]), str(sig[3])]
+                    else:
+                        masked_sig = "***"
+                    safe_payload = {
+                        "method": payload.get("method"),
+                        "params": payload.get("params"),
+                        "signature": masked_sig,
+                    }
+                    logger.debug(f"Sending subscription payload for {stream_name}: {json.dumps(safe_payload)}")
+                except Exception:
+                    logger.debug(f"Sending subscription payload for {stream_name}: [masked private payload]")
+            else:
+                logger.debug(f"Sending subscription payload for {stream_name}: {json.dumps(payload)}")
             await self.websocket.send(json.dumps(payload))
             logger.debug(f"Subscription payload sent for {stream_name}.")
             logger.debug(f"Successfully sent subscription request for {stream_name}")
