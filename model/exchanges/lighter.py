@@ -117,10 +117,10 @@ class LighterExchange(BaseExchange):
                 # Log account information
                 if hasattr(account_details, 'accounts') and account_details.accounts:
                     account = account_details.accounts[0]
-                    logger.info(f"Account Type: {account.account_type}")
-                    logger.info(f"Collateral: {account.collateral}")
-                    logger.info(f"Total Asset Value: {account.total_asset_value}")
-                    logger.info(f"Number of positions: {len(account.positions)}")
+                    logger.debug(f"Account Type: {account.account_type}")
+                    logger.debug(f"Collateral: {account.collateral}")
+                    logger.debug(f"Total Asset Value: {account.total_asset_value}")
+                    logger.debug(f"Number of positions: {len(account.positions)}")
             except Exception as e:
                 logger.warning(f"Could not retrieve account details (API compatibility issue): {e}")
                 logger.info("Continuing with SignerClient initialization...")
@@ -775,7 +775,7 @@ class LighterExchange(BaseExchange):
                         }
                         balance_info['positions'].append(pos_info)
                 
-                logger.info(f"Real balance fetched: ${balance_info['total_asset_value']:.2f} total, ${balance_info['free_collateral']:.2f} free")
+                logger.debug(f"Real balance fetched: ${balance_info['total_asset_value']:.2f} total, ${balance_info['free_collateral']:.2f} free")
                 return balance_info
             else:
                 logger.warning("No account details found")

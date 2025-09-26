@@ -475,7 +475,7 @@ class FundingArbitrageEngine:
                         if isinstance(bal, dict) and "error" not in bal:
                             free = float(bal.get("free_collateral", 0))
                             total = float(bal.get("total_asset_value", 0))
-                            logger.info(f"{exchange_name} free: ${free:.2f}, total: ${total:.2f}")
+                            logger.debug(f"{exchange_name} free: ${free:.2f}, total: ${total:.2f}")
                             return free > 0
                         return False
                     elif exchange_name == "Hyperliquid":
@@ -485,7 +485,7 @@ class FundingArbitrageEngine:
                             cms = us.get("crossMarginSummary", {}) if isinstance(us, dict) else {}
                             withdrawable = float(cms.get("withdrawable", 0)) if cms else 0.0
                             equity = float(cms.get("accountValue", 0)) if cms else 0.0
-                            logger.info(f"{exchange_name} withdrawable: ${withdrawable:.2f}, equity: ${equity:.2f}")
+                            logger.debug(f"{exchange_name} withdrawable: ${withdrawable:.2f}, equity: ${equity:.2f}")
                             return (withdrawable > 0) or (equity > 0)
                         except Exception:
                             # If we cannot determine, do not block
@@ -494,7 +494,7 @@ class FundingArbitrageEngine:
                     elif exchange_name == "Backpack":
                         try:
                             equity = backpack.get_equity_usd()
-                            logger.info(f"Backpack equity: ${equity:.2f}")
+                            logger.debug(f"Backpack equity: ${equity:.2f}")
                             return equity > 0
                         except Exception as e:
                             logger.warning(f"Backpack collateral fetch failed: {e}")

@@ -406,7 +406,7 @@ class BackpackExchange(BaseExchange):
         
         # Get positions
         positions = self.get_positions()
-        logger.info(f"Positions: {positions}")
+        logger.debug(f"Positions: {positions}")
         
         # First check if positions is a list (as expected)
         if not isinstance(positions, list):
@@ -419,10 +419,10 @@ class BackpackExchange(BaseExchange):
                 size = None
                 if "netQuantity" in position:
                     size = float(position.get("netQuantity", "0"))
-                    logger.info(f"Using netQuantity field for position size: {size}")
+                    logger.debug(f"Using netQuantity field for position size: {size}")
                 elif "positionSize" in position:
                     size = float(position.get("positionSize", "0"))
-                    logger.info(f"Using positionSize field for position size: {size}")
+                    logger.debug(f"Using positionSize field for position size: {size}")
                 else:
                     # Log all available keys to help diagnose
                     logger.warning(f"Could not find size field. Available keys: {list(position.keys())}")
