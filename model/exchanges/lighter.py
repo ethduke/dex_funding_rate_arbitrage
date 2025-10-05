@@ -698,7 +698,7 @@ class LighterExchange(BaseExchange):
             return None
 
     async def _get_market_decimals(self, market_id: int) -> Dict[str, int]:
-        """Fetch sizeDecimal and priceDecimal for a market from Lighter OrderbookDetails API.
+        """Get supported_price_decimals and supported_size_decimals for a market from Lighter API.
         
         Returns:
             Dict with 'sizeDecimal' and 'priceDecimal' keys
@@ -707,24 +707,27 @@ class LighterExchange(BaseExchange):
             return self._market_decimals_cache[market_id]
         
         try:
-            # Use Lighter SDK to get orderbook details
-            orderbook_api = lighter.OrderbookApi(self.api_client)
-            details = await orderbook_api.orderbook_details(market_id=market_id)
+            # Use Lighter OrderApi to get order book details
+            order_api = lighter.OrderApi(self.api_client)
+            response = await order_api.order_book_details(market_id=market_id)
             
             # Extract decimals from the response
-            size_decimal = getattr(details, 'sizeDecimal', 6)  # Default to 6 if not found
-            price_decimal = getattr(details, 'priceDecimal', 6)  # Default to 6 if not found
+            if hasattr(response, 'order_book_details') and response.order_book_details:
+                for detail in response.order_book_details:
+                    if detail.market_id == market_id:
+                        decimals = {
+                            'sizeDecimal': int(detail.supported_size_decimals),
+                            'priceDecimal': int(detail.supported_price_decimals)
+                        }
+                        
+                        # Cache the result
+                        self._market_decimals_cache[market_id] = decimals
+                        logger.debug(f"Fetched decimals for market {market_id}: {decimals}")
+                        
+                        return decimals
             
-            decimals = {
-                'sizeDecimal': int(size_decimal),
-                'priceDecimal': int(price_decimal)
-            }
-            
-            # Cache the result
-            self._market_decimals_cache[market_id] = decimals
-            logger.debug(f"Fetched decimals for market {market_id}: {decimals}")
-            
-            return decimals
+            # If not found in API response, raise an error
+            raise ValueError(f"Market {market_id} not found in API response")
             
         except Exception as e:
             logger.error(f"Failed to fetch decimals for market {market_id}: {e}")
