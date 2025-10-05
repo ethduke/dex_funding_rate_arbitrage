@@ -318,7 +318,7 @@ class LighterExchange(BaseExchange):
             logger.info(f"   Is ask: {is_ask}")
             logger.info(f"   Reduce only: {reduce_only}")
             
-            # Prefer limited slippage market to avoid cancellations
+            # Use limited slippage market order
             created, api_resp, err = await self.signer_client.create_market_order_limited_slippage(
                 market_index=market_id,
                 client_order_index=self._get_next_client_order_index(),
@@ -327,21 +327,6 @@ class LighterExchange(BaseExchange):
                 is_ask=is_ask,
                 reduce_only=reduce_only,
             )
-            if err is not None:
-                logger.warning(f"Limited-slippage market order fell back due to error: {err}; trying plain market with wide bound")
-                # Fallback: compute a wide-guard avg_execution_price using proper priceDecimal scaling
-                if is_ask:
-                    avg_execution_price = max(1, int(estimated_price * (1 - max_slippage) * (10 ** price_decimal)))
-                else:
-                    avg_execution_price = int(estimated_price * (1 + max_slippage) * (10 ** price_decimal))
-                created, api_resp, err = await self.signer_client.create_market_order(
-                    market_index=market_id,
-                    client_order_index=self._get_next_client_order_index(),
-                    base_amount=base_amount,
-                    avg_execution_price=avg_execution_price,
-                    is_ask=is_ask,
-                    reduce_only=reduce_only,
-                )
 
             tx = (created, api_resp, err)
             
