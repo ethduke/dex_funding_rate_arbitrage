@@ -2,6 +2,7 @@ import lighter
 import json
 import os
 import time
+import asyncio
 from model.exchanges.base import BaseExchange
 from model.exchanges.lighter_ws import LighterWebSocketClient
 from typing import Dict, List, Optional, Any, Callable, Tuple
@@ -59,6 +60,13 @@ class LighterExchange(BaseExchange):
                 self.ws_client.set_market_mapping(self._market_mapping_cache)
             
             await self.ws_client.connect()
+            
+            # Wait for order book updates to start flowing (graceful startup delay)
+            if self.ws_client.is_connected():
+                logger.debug("Waiting 3 seconds for order book updates to initialize...")
+                await asyncio.sleep(3)
+                logger.debug("Order book updates should now be available")
+            
             return self.ws_client.is_connected()
         return False
         
