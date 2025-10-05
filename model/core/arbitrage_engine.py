@@ -38,6 +38,9 @@ class FundingArbitrageEngine:
         self.position_stats = {}  # Track position statistics
         self.running = False
         
+        # Balance validation cache (checked once at startup)
+        self._balance_status = None
+        
         # Cancel event for stopping scheduled tasks
         self.stop_event = asyncio.Event()
         
@@ -253,6 +256,47 @@ class FundingArbitrageEngine:
         logger.info(f"Found {len(opportunities)} potential arbitrage opportunities")
         return opportunities
 
+    async def _validate_exchange_balances(self) -> Dict[str, bool]:
+        """Check if each exchange has sufficient balance for minimum position size."""
+        balance_status = {}
+        
+        for exchange_name, exchange in self.exchanges.items():
+            try:
+                if exchange_name == "Backpack":
+                    equity = exchange.get_equity_usd()
+                    balance_status[exchange_name] = equity >= self.position_size
+                    logger.info(f"Backpack balance: ${equity:.2f} (required: ${self.position_size})")
+                elif exchange_name == "Hyperliquid":
+                    available = exchange.get_available_usd()
+                    balance_status[exchange_name] = available >= self.position_size
+                    logger.info(f"Hyperliquid balance: ${available:.2f} (required: ${self.position_size})")
+                elif exchange_name == "Lighter":
+                    balance = await exchange.get_real_balance()
+                    free_collateral = float(balance.get("free_collateral", 0))
+                    balance_status[exchange_name] = free_collateral >= self.position_size
+                    logger.info(f"Lighter balance: ${free_collateral:.2f} (required: ${self.position_size})")
+            except Exception as e:
+                logger.warning(f"Failed to check balance for {exchange_name}: {e}")
+                balance_status[exchange_name] = False
+        
+        return balance_status
+
+    def _filter_by_balance(self, opportunities: List[Dict], balance_status: Dict[str, bool]) -> List[Dict]:
+        """Filter out opportunities where exchanges lack sufficient balance."""
+        filtered = []
+        
+        for opp in opportunities:
+            long_exchange = opp['long_exchange']
+            short_exchange = opp['short_exchange']
+            
+            # Skip if either exchange lacks balance
+            if not balance_status.get(long_exchange, False) or not balance_status.get(short_exchange, False):
+                logger.debug(f"Skipping {opp['asset']}: insufficient balance on {long_exchange} or {short_exchange}")
+                continue
+                
+            filtered.append(opp)
+        
+        return filtered
             
     async def check_opportunities(self):
         """Check for new arbitrage opportunities and manage existing positions."""
@@ -293,20 +337,34 @@ class FundingArbitrageEngine:
                 
                 # Find arbitrage opportunities
                 opportunities = self.find_arbitrage_opportunities(exchange_rates, min_diff=self.min_rate_difference)
+                logger.info(f"Found {len(opportunities)} potential arbitrage opportunities")
+                
+                # Check balances once at startup (cached)
+                if self._balance_status is None:
+                    logger.info("Checking exchange balances...")
+                    self._balance_status = await self._validate_exchange_balances()
+                    
+                    insufficient_exchanges = [name for name, has_balance in self._balance_status.items() if not has_balance]
+                    if insufficient_exchanges:
+                        logger.warning(f"Exchanges with insufficient balance: {insufficient_exchanges}")
+                
+                # Filter opportunities by available balance
+                filtered_opportunities = self._filter_by_balance(opportunities, self._balance_status)
+                logger.info(f"After balance filtering: {len(filtered_opportunities)} viable opportunities")
                 
                 # Calculate profit based on position size
                 logger.info("Calculating potential profits...")
-                for opp in opportunities:
+                for opp in filtered_opportunities:
                     opp['daily_profit_usd'] = self.position_size * abs(opp['potential_profit'])
                     opp['apr'] = abs(opp['potential_profit']) * 365 * 100
                 
                 # Sort by APR (highest first)
-                if opportunities:
-                    opportunities.sort(key=lambda x: x['apr'], reverse=True)
+                if filtered_opportunities:
+                    filtered_opportunities.sort(key=lambda x: x['apr'], reverse=True)
                     
                     # Display top N opportunities
                     logger.info(f"\n---- Top 3 Arbitrage Opportunities (Based on ${self.position_size} Position Size) ----")
-                    for i, opp in enumerate(opportunities[:3]):
+                    for i, opp in enumerate(filtered_opportunities[:3]):
                         logger.info(f"{i+1}. {opp['asset']}: Potential Profit = {opp['potential_profit']:.6f}")
                         logger.info(f"   Strategy: {opp['strategy']}")
                         logger.info(f"   Daily Profit: ${opp['daily_profit_usd']:.2f} (APR: {opp['apr']:.2f}%)")
@@ -321,7 +379,7 @@ class FundingArbitrageEngine:
                 await self._manage_active_monitors()
                 
                 # Enter new positions if not at max capacity
-                await self._enter_new_positions(opportunities)
+                await self._enter_new_positions(filtered_opportunities)
                 
                 logger.debug("Opportunity check cycle completed successfully")
                 
