@@ -35,6 +35,9 @@ class LighterExchange(BaseExchange):
         # Store latest order books
         self._order_books = {}
         
+        # Cache for market decimals (sizeDecimal, priceDecimal)
+        self._market_decimals_cache = {}
+        
         # Initialize credentials
         self.account_index = None
         self.signer_client = None
@@ -272,8 +275,10 @@ class LighterExchange(BaseExchange):
             # Convert symbol to market_id
             market_id = await self._get_market_id(symbol)
             
-            # Determine per-market base scale (units per 1 base asset)
-            base_scale = self._get_base_scale(symbol)
+            # Get market decimals for proper scaling
+            decimals = await self._get_market_decimals(market_id)
+            size_decimal = decimals['sizeDecimal']
+            price_decimal = decimals['priceDecimal']
 
             # Determine the base amount and price; abort if unavailable
             estimated_price = await self._get_estimated_price(symbol)
@@ -281,13 +286,14 @@ class LighterExchange(BaseExchange):
                 logger.warning(f"Could not estimate price for {symbol}; aborting order placement")
                 return {"error": f"No price available for {symbol}; order aborted"}
 
-            # Determine the base amount and price based on dynamic estimate
+            # Determine the base amount using proper sizeDecimal scaling
             if quote_quantity is not None:
-                # Convert USD to base units via dynamic price
-                base_amount = int((quote_quantity / estimated_price) * base_scale)
+                # Convert USD to base units via dynamic price, then scale by sizeDecimal
+                base_amount_raw = quote_quantity / estimated_price
+                base_amount = int(base_amount_raw * (10 ** size_decimal))
             elif quantity is not None:
-                # If quantity is provided, convert to base amount
-                base_amount = int(quantity * base_scale)
+                # If quantity is provided, scale by sizeDecimal
+                base_amount = int(quantity * (10 ** size_decimal))
             else:
                 return {"error": "Either quantity or quote_quantity must be provided"}
             
@@ -306,7 +312,8 @@ class LighterExchange(BaseExchange):
             logger.info(f"   Symbol: {symbol}, Side: {side}")
             logger.info(f"   Market ID: {market_id}")
             logger.info(f"   Base amount: {base_amount}")
-            logger.info(f"   Base scale: {base_scale}")
+            logger.info(f"   Size decimal: {size_decimal}")
+            logger.info(f"   Price decimal: {price_decimal}")
             logger.info(f"   Max slippage: {max_slippage}")
             logger.info(f"   Is ask: {is_ask}")
             logger.info(f"   Reduce only: {reduce_only}")
@@ -322,11 +329,11 @@ class LighterExchange(BaseExchange):
             )
             if err is not None:
                 logger.warning(f"Limited-slippage market order fell back due to error: {err}; trying plain market with wide bound")
-                # Fallback: compute a wide-guard avg_execution_price based on side
+                # Fallback: compute a wide-guard avg_execution_price using proper priceDecimal scaling
                 if is_ask:
-                    avg_execution_price = max(1, int(estimated_price * (1 - max_slippage) * 1e6))
+                    avg_execution_price = max(1, int(estimated_price * (1 - max_slippage) * (10 ** price_decimal)))
                 else:
-                    avg_execution_price = int(estimated_price * (1 + max_slippage) * 1e6)
+                    avg_execution_price = int(estimated_price * (1 + max_slippage) * (10 ** price_decimal))
                 created, api_resp, err = await self.signer_client.create_market_order(
                     market_index=market_id,
                     client_order_index=self._get_next_client_order_index(),
@@ -698,22 +705,44 @@ class LighterExchange(BaseExchange):
             logger.error(f"Failed to get current price for {symbol}: {e}")
             return None
 
-    def _get_base_scale(self, symbol: str) -> int:
-        """Return base unit scale per market.
-
-        Many Lighter markets appear to use 1e5 for BTC sized assets and 1e6 for others.
-        We'll use a conservative mapping and can refine if needed.
+    async def _get_market_decimals(self, market_id: int) -> Dict[str, int]:
+        """Fetch sizeDecimal and priceDecimal for a market from Lighter OrderbookDetails API.
+        
+        Returns:
+            Dict with 'sizeDecimal' and 'priceDecimal' keys
         """
-        mapping = {
-            "BTC": int(1e5),
-            # Reasonable defaults; adjust per discovered market metadata
-            "SOL": int(1e6),
-            "DOGE": int(1e6),
-            "1000PEPE": int(1e6),
-            "LINK": int(1e6),
-            "TRUMP": int(1e6),
-        }
-        return mapping.get(symbol.upper(), int(1e6))
+        if market_id in self._market_decimals_cache:
+            return self._market_decimals_cache[market_id]
+        
+        try:
+            # Use Lighter SDK to get orderbook details
+            orderbook_api = lighter.OrderbookApi(self.api_client)
+            details = await orderbook_api.orderbook_details(market_id=market_id)
+            
+            # Extract decimals from the response
+            size_decimal = getattr(details, 'sizeDecimal', 6)  # Default to 6 if not found
+            price_decimal = getattr(details, 'priceDecimal', 6)  # Default to 6 if not found
+            
+            decimals = {
+                'sizeDecimal': int(size_decimal),
+                'priceDecimal': int(price_decimal)
+            }
+            
+            # Cache the result
+            self._market_decimals_cache[market_id] = decimals
+            logger.debug(f"Fetched decimals for market {market_id}: {decimals}")
+            
+            return decimals
+            
+        except Exception as e:
+            logger.warning(f"Failed to fetch decimals for market {market_id}: {e}")
+            # Fallback to reasonable defaults
+            decimals = {
+                'sizeDecimal': 6,
+                'priceDecimal': 6
+            }
+            self._market_decimals_cache[market_id] = decimals
+            return decimals
 
     async def _get_estimated_price(self, symbol: str) -> Optional[float]:
         """Estimate current price for symbol without hardcoded constants.
