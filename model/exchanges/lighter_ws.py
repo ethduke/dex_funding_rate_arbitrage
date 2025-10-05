@@ -138,7 +138,7 @@ class LighterWebSocketClient:
         except Exception as e:
             # Don't treat "Failed to fetch" as a critical error - it's common in WebSocket connections
             if "Failed to fetch" in str(e) or "Unhandled message" in str(e):
-                logger.debug(f"WebSocket message handling: {e}")
+                logger.debug("WebSocket message handling error (non-fatal)")
                 # Continue running - this is not a fatal error
                 return
             else:
@@ -322,11 +322,11 @@ class LighterWebSocketClient:
             if isinstance(message, dict) and 'error' in message:
                 error_code = message['error'].get('code', 'unknown')
                 error_msg = message['error'].get('message', 'unknown error')
-                logger.debug(f"WebSocket error message: {error_code} - {error_msg}")
+                logger.debug(f"WebSocket error: {error_code}")
             else:
-                logger.debug(f"Unhandled WebSocket message: {type(message)} - {message}")
+                logger.debug("Unhandled WebSocket message received")
         except Exception as e:
-            logger.debug(f"Error handling unhandled message: {e}")
+            logger.debug("Error handling WebSocket message")
 
     async def subscribe_to_market_updates(self, market_ids: List[int], callback: Callable):
         """Subscribe to market updates for specific markets."""

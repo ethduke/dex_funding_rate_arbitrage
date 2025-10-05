@@ -30,7 +30,7 @@ class BackpackWebSocketClient:
         window = CONFIG.get("BACKPACK_DEFAULT_WINDOW")
         message = f"instruction=subscribe&timestamp={timestamp}&window={window}"
 
-        logger.debug(f"Signing WebSocket subscription message: {message}")
+        # Sign the message (removed debug logging for security)
         signature = signing_key.sign(message.encode())
 
         return [
@@ -241,7 +241,7 @@ class BackpackWebSocketClient:
                     
                     logger.debug("Waiting for message from WebSocket...")
                     message_str = await self.websocket.recv()
-                    logger.debug(f"Received message string: {message_str}")
+                    # Removed debug logging of message content for security
                     message = json.loads(message_str)
                     # logger.debug(f"Received parsed message: {message}") # Can be noisy
 
@@ -266,13 +266,13 @@ class BackpackWebSocketClient:
                          if "error" in message:
                             logger.error(f"Received error response from server: {message}")
                          else:
-                            logger.debug(f"Received confirmation response from server: {message}")
+                            logger.debug("Received confirmation response from server")
                     elif isinstance(message, dict) and message.get("method") == "PING":
                         # Handle PING from server if needed (library usually handles PONG)
                         logger.debug("Received PING from server, sending PONG.")
                         await self.websocket.pong()
                     else:
-                        logger.debug(f"Received unhandled message format: {message}")
+                        logger.debug("Received unhandled message format")
 
                 except websockets.exceptions.ConnectionClosedError as e:
                     logger.warning(f"WebSocket connection closed by server: {e}. Code: {e.code}, Reason: {e.reason}")
