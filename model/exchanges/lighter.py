@@ -61,9 +61,8 @@ class LighterExchange(BaseExchange):
             
             await self.ws_client.connect()
             
-            # Wait for order book updates to start flowing (graceful startup delay)
             if self.ws_client.is_connected():
-                logger.debug("Waiting 3 seconds for order book updates to initialize...")
+                logger.debug("Waiting 3 seconds for order book updates to initialize")
                 await asyncio.sleep(3)
                 logger.debug("Order book updates should now be available")
             
