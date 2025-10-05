@@ -720,14 +720,8 @@ class LighterExchange(BaseExchange):
             return decimals
             
         except Exception as e:
-            logger.warning(f"Failed to fetch decimals for market {market_id}: {e}")
-            # Fallback to reasonable defaults
-            decimals = {
-                'sizeDecimal': 6,
-                'priceDecimal': 6
-            }
-            self._market_decimals_cache[market_id] = decimals
-            return decimals
+            logger.error(f"Failed to fetch decimals for market {market_id}: {e}")
+            raise
 
     async def _get_estimated_price(self, symbol: str) -> Optional[float]:
         """Estimate current price for symbol without hardcoded constants.
