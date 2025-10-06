@@ -716,8 +716,8 @@ class LighterExchange(BaseExchange):
                 for detail in response.order_book_details:
                     if detail.market_id == market_id:
                         decimals = {
-                            'sizeDecimal': int(detail.supported_size_decimals),
-                            'priceDecimal': int(detail.supported_price_decimals)
+                            'sizeDecimal': int(detail.size_decimals),
+                            'priceDecimal': int(detail.price_decimals)
                         }
                         
                         # Cache the result
