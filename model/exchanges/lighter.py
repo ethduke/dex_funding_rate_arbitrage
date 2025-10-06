@@ -768,13 +768,21 @@ class LighterExchange(BaseExchange):
             
             if hasattr(account_details, 'accounts') and account_details.accounts:
                 account = account_details.accounts[0]
-                
+                # Simplified free collateral calculation
+                free_collateral = float(
+                    getattr(account, 'free_collateral', None)
+                    or getattr(account, 'available_balance', None)
+                    or getattr(account, 'collateral', 0.0) * (
+                        1.0 if not getattr(account, 'positions', None) or all(float(pos.position) == 0 for pos in account.positions)
+                        else 0.1
+                    )
+                )
                 balance_info = {
                     'account_index': self.account_index,
                     'account_type': account.account_type,
                     'collateral': float(account.collateral) if hasattr(account, 'collateral') else 0.0,
                     'total_asset_value': float(account.total_asset_value) if hasattr(account, 'total_asset_value') else 0.0,
-                    'free_collateral': float(account.free_collateral) if hasattr(account, 'free_collateral') else 0.0,
+                    'free_collateral': free_collateral,
                     'positions_count': len(account.positions) if hasattr(account, 'positions') else 0,
                     'timestamp': datetime.now().isoformat()
                 }
