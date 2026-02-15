@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Any, Callable, Tuple
 from utils.config import CONFIG
 from utils.logger import setup_logger
 from lighter import SignerClient
+from lighter.nonce_manager import NonceManagerType
 from datetime import datetime
 
 logger = setup_logger(__name__)
@@ -156,7 +157,7 @@ class LighterExchange(BaseExchange):
                                 url=CONFIG.LIGHTER_API_URL,
                                 api_private_keys={CONFIG.LIGHTER_ACCOUNT_INDEX: private_key},
                                 account_index=CONFIG.LIGHTER_ACCOUNT_INDEX,
-                                nonce_management_type=1  # OPTIMISTIC
+                                nonce_management_type=NonceManagerType.OPTIMISTIC
                             )
                             logger.info("Lighter SignerClient initialized successfully")
                         except Exception as e:
