@@ -150,12 +150,13 @@ class LighterExchange(BaseExchange):
                         self.signer_client = None
                     else:
                         try:
-                            # Use the private key directly (SignerClient expects 40 bytes)
+                            # Use the private key directly (SignerClient expects api_private_keys as dict)
+                            # SDK v1.0+ uses api_private_keys: Dict[int, str] format
                             self.signer_client = SignerClient(
                                 url=CONFIG.LIGHTER_API_URL,
-                                private_key=private_key,
+                                api_private_keys={CONFIG.LIGHTER_ACCOUNT_INDEX: private_key},
                                 account_index=CONFIG.LIGHTER_ACCOUNT_INDEX,
-                                api_key_index=CONFIG.LIGHTER_API_KEY_INDEX
+                                nonce_management_type=1  # OPTIMISTIC
                             )
                             logger.info("Lighter SignerClient initialized successfully")
                         except Exception as e:
