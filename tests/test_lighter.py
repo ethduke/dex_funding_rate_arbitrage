@@ -215,7 +215,7 @@ async def account_apis(client: lighter.ApiClient):
         await print_api(account_instance.account, by="index", value=str(ACCOUNT_INDEX))
         # await print_api(account_instance.accounts_by_l1_address, l1_address=L1_ADDRESS)
         await print_api(account_instance.apikeys, account_index=ACCOUNT_INDEX, api_key_index=1)
-        await print_api(account_instance.public_pools, filter="all", limit=1, index=0)
+        await print_api(account_instance.public_pools_metadata, filter="all", limit=1, index=0)
         
         print(" Account APIs test completed successfully!")
         

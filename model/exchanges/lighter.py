@@ -465,7 +465,7 @@ class LighterExchange(BaseExchange):
     async def get_public_pools(self, filter: str = "all", limit: int = 10, index: int = 0):
         """Get public pools"""
         try:
-            return await self.account_api.public_pools(filter=filter, limit=limit, index=index)
+            return await self.account_api.public_pools_metadata(filter=filter, limit=limit, index=index)
         except Exception as e:
             logger.error(f"Failed to get public pools: {e}")
             raise
