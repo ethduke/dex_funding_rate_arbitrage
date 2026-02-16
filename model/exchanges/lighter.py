@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Any, Callable, Tuple
 from utils.config import CONFIG
 from utils.logger import setup_logger
 from lighter import SignerClient
+from lighter.nonce_manager import NonceManagerType
 from datetime import datetime
 
 logger = setup_logger(__name__)
@@ -150,12 +151,13 @@ class LighterExchange(BaseExchange):
                         self.signer_client = None
                     else:
                         try:
-                            # Use the private key directly (SignerClient expects 40 bytes)
+                            # Use the private key directly (SignerClient expects api_private_keys as dict)
+                            # SDK v1.0+ uses api_private_keys: Dict[int, str] format
                             self.signer_client = SignerClient(
                                 url=CONFIG.LIGHTER_API_URL,
-                                private_key=private_key,
+                                api_private_keys={CONFIG.LIGHTER_ACCOUNT_INDEX: private_key},
                                 account_index=CONFIG.LIGHTER_ACCOUNT_INDEX,
-                                api_key_index=CONFIG.LIGHTER_API_KEY_INDEX
+                                nonce_management_type=NonceManagerType.OPTIMISTIC
                             )
                             logger.info("Lighter SignerClient initialized successfully")
                         except Exception as e:
@@ -465,7 +467,7 @@ class LighterExchange(BaseExchange):
     async def get_public_pools(self, filter: str = "all", limit: int = 10, index: int = 0):
         """Get public pools"""
         try:
-            return await self.account_api.public_pools(filter=filter, limit=limit, index=index)
+            return await self.account_api.public_pools_metadata(filter=filter, limit=limit, index=index)
         except Exception as e:
             logger.error(f"Failed to get public pools: {e}")
             raise

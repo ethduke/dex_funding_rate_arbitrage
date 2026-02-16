@@ -42,20 +42,20 @@ ecdsa==0.19.0
 ed25519-blake2b==1.4.1
 editor==1.6.5
 et_xmlfile==2.0.0
-eth-account==0.13.7
-eth-hash==0.5.2
-eth-keyfile==0.7.0
-eth-keys==0.6.0
-eth-rlp==2.2.0
-eth-typing==5.0.1
-eth-utils==5.1.0
-eth_abi==5.1.0
+eth-account>=0.13.7
+eth-hash>=0.5.2
+eth-keyfile>=0.7.0
+eth-keys>=0.6.0
+eth-rlp>=2.2.0
+eth-typing>=5.0.1
+eth-utils>=5.1.0
+eth_abi>=5.1.0
 fake-useragent==1.4.0
 Faker==23.2.1
 frozenlist==1.4.1
 greenlet==3.1.1
 h11==0.14.0
-hexbytes==1.3.1
+hexbytes>=1.2.0
 httpcore==1.0.7
 httpx==0.28.1
 hyperliquid-python-sdk==0.12.0
@@ -67,7 +67,7 @@ jsoncodable==0.1.7
 jsonschema==4.20.0
 jsonschema-specifications==2023.12.1
 kw3==0.0.24
-lighter-sdk @ git+https://github.com/elliottech/lighter-python.git@7bfe3f1ba6383eb907467337f215375ccd4493c6
+lighter-sdk==1.0.3
 loguru==0.7.2
 lru-dict==1.2.0
 lxml==5.2.2
@@ -133,7 +133,7 @@ tzdata==2024.1
 urllib3==2.0.7
 uv==0.4.10
 wcwidth==0.2.13
-web3==6.11.4
+web3>=6.20.0
 web3-erc20==0.0.9
 web3-erc20-predefined==0.0.3
 web3-multicall==0.0.7
