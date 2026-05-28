@@ -1091,18 +1091,24 @@ class FundingArbitrageEngine:
                             
                             # Close positions on both exchanges
                             logger.info(f"Closing positions on both exchanges")
+
+                            exchange_objs = {
+                                "Backpack": backpack,
+                                "Hyperliquid": hyperliquid,
+                                "Lighter": lighter,
+                            }
                             
                             # Close positions using the shared helper method
                             long_close_success = await self._close_exchange_position(
                                 long_exchange,
-                                backpack if long_exchange == "Backpack" else hyperliquid,
+                                exchange_objs.get(long_exchange),
                                 asset,
                                 stats
                             )
                             
                             short_close_success = await self._close_exchange_position(
                                 short_exchange,
-                                backpack if short_exchange == "Backpack" else hyperliquid,
+                                exchange_objs.get(short_exchange),
                                 asset,
                                 stats
                             )
@@ -1138,8 +1144,20 @@ class FundingArbitrageEngine:
                                             # Try one more time to close
                                             logger.info("Making one final attempt to close Hyperliquid position")
                                             hyperliquid.close_position(asset)
+
+                                # Check Lighter positions
+                                lt_position_closed = True
+                                if lighter:
+                                    lt_positions = await lighter.get_positions()
+                                    if isinstance(lt_positions, list):
+                                        for pos in lt_positions:
+                                            if pos.get("symbol") == asset and float(pos.get("size", "0")) != 0:
+                                                lt_position_closed = False
+                                                logger.warning(f"Lighter position still open: {pos}")
+                                                logger.info("Making one final attempt to close Lighter position")
+                                                await lighter.close_position(asset)
                                 
-                                if bp_position_closed and hl_position_closed:
+                                if bp_position_closed and hl_position_closed and lt_position_closed:
                                     logger.info("All positions successfully closed")
                                 else:
                                     logger.warning("Some positions may still be open")
@@ -1340,7 +1358,7 @@ class FundingArbitrageEngine:
                             hyperliquid.close_position(asset)
                 
                 # Check Lighter positions
-                lt_positions = lighter.get_positions()
+                lt_positions = await lighter.get_positions()
                 if isinstance(lt_positions, list):
                     for pos in lt_positions:
                         if pos.get("symbol") == asset and float(pos.get("size", "0")) != 0:
@@ -1348,7 +1366,7 @@ class FundingArbitrageEngine:
                             logger.warning(f"Lighter position still open: {pos}")
                             # Try one more time to close
                             logger.info("Making one final attempt to close Lighter position")
-                            lighter.close_position(asset)
+                            await lighter.close_position(asset)
                 
                 if bp_position_closed and hl_position_closed and lt_position_closed:
                     logger.info("All positions successfully closed")
@@ -1393,6 +1411,10 @@ class FundingArbitrageEngine:
         """
         bp_symbol = f"{asset_name}_USDC_PERP"
         success = False
+
+        if exchange_obj is None:
+            logger.error(f"No exchange object available for {exchange_name}")
+            return False
         
         for attempt in range(3):
             try:
@@ -1403,7 +1425,7 @@ class FundingArbitrageEngine:
                 elif exchange_name == "Hyperliquid":
                     result = exchange_obj.close_position(asset_name)
                 elif exchange_name == "Lighter":
-                    result = exchange_obj.close_position(asset_name)
+                    result = await exchange_obj.close_position(asset_name)
                 else:
                     logger.error(f"Unknown exchange: {exchange_name}")
                     return False

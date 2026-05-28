@@ -23,13 +23,14 @@ class LighterExchange(BaseExchange):
             configuration=lighter.Configuration(host=CONFIG.LIGHTER_API_URL)
         )
         self.account_api = lighter.AccountApi(self.api_client)
+        self.order_api = lighter.OrderApi(self.api_client)
 
         # Initialize WebSocket client if use_ws is True
         self.use_ws = use_ws
         if use_ws:
             self.ws_client = LighterWebSocketClient(
                 order_book_ids=order_book_ids or [0, 1], 
-                account_ids=[1, 2]
+                account_ids=[CONFIG.LIGHTER_ACCOUNT_INDEX]
             )
         else:
             self.ws_client = None
@@ -155,11 +156,22 @@ class LighterExchange(BaseExchange):
                             # SDK v1.0+ uses api_private_keys: Dict[int, str] format
                             self.signer_client = SignerClient(
                                 url=CONFIG.LIGHTER_API_URL,
-                                api_private_keys={CONFIG.LIGHTER_ACCOUNT_INDEX: private_key},
                                 account_index=CONFIG.LIGHTER_ACCOUNT_INDEX,
+                                api_private_keys={CONFIG.LIGHTER_API_KEY_INDEX: private_key},
                                 nonce_management_type=NonceManagerType.OPTIMISTIC
                             )
-                            logger.info("Lighter SignerClient initialized successfully")
+                            signer_error = self.signer_client.check_client()
+                            if signer_error:
+                                logger.error(
+                                    "Lighter SignerClient key check failed for "
+                                    f"account_index={CONFIG.LIGHTER_ACCOUNT_INDEX}, "
+                                    f"api_key_index={CONFIG.LIGHTER_API_KEY_INDEX}"
+                                )
+                                logger.debug(f"Lighter SignerClient key check detail: {signer_error}")
+                                await self.signer_client.close()
+                                self.signer_client = None
+                            else:
+                                logger.info("Lighter SignerClient initialized successfully")
                         except Exception as e:
                             logger.error(f"SignerClient initialization failed: {e}")
                             self.signer_client = None
@@ -327,7 +339,7 @@ class LighterExchange(BaseExchange):
             logger.info(f"   Is ask: {is_ask}")
             logger.info(f"   Reduce only: {reduce_only}")
             
-            # Use limited slippage market order
+            # Prefer limited slippage market to avoid cancellations
             created, api_resp, err = await self.signer_client.create_market_order_limited_slippage(
                 market_index=market_id,
                 client_order_index=self._get_next_client_order_index(),
@@ -335,6 +347,7 @@ class LighterExchange(BaseExchange):
                 max_slippage=max_slippage,
                 is_ask=is_ask,
                 reduce_only=reduce_only,
+                api_key_index=CONFIG.LIGHTER_API_KEY_INDEX,
             )
 
             tx = (created, api_resp, err)
@@ -397,11 +410,11 @@ class LighterExchange(BaseExchange):
 
     async def open_long(self, asset: str, amount: float) -> Dict:
         """Open a long position."""
-        return await self.place_market_order(symbol=asset, side="BUY", quantity=amount)
+        return await self.place_market_order(symbol=asset, side="BUY", quote_quantity=amount)
 
     async def open_short(self, asset: str, amount: float) -> Dict:
         """Open a short position."""
-        return await self.place_market_order(symbol=asset, side="SELL", quantity=amount)
+        return await self.place_market_order(symbol=asset, side="SELL", quote_quantity=amount)
 
     def format_symbol(self, asset: str) -> str:
         """Format asset symbol for Lighter."""
@@ -679,8 +692,15 @@ class LighterExchange(BaseExchange):
         self._client_order_counter += 1
         return self._client_order_counter
 
+    @staticmethod
+    def _obj_get(obj: Any, field: str, default: Any = None) -> Any:
+        """Read a field from either a dict or an SDK model object."""
+        if isinstance(obj, dict):
+            return obj.get(field, default)
+        return getattr(obj, field, default)
+
     async def get_current_price(self, symbol: str) -> Optional[float]:
-        """Get current price for a symbol from WebSocket only."""
+        """Get current price for a symbol from WebSocket or mark-price candles."""
         try:
             # If WebSocket is enabled, try to get from market stats
             if self.use_ws and self.ws_client and self.ws_client.is_connected():
@@ -691,13 +711,212 @@ class LighterExchange(BaseExchange):
                         return latest_price
                 except:
                     pass
+
+            try:
+                mark_price = await self.get_latest_mark_price(symbol)
+                if mark_price and mark_price > 0:
+                    return mark_price
+            except Exception as e:
+                logger.debug(f"Could not fetch mark-price candle for {symbol}: {e}")
             
-            logger.warning(f"No WebSocket price data available for {symbol}")
+            logger.warning(f"No price data available for {symbol}")
             return None
             
         except Exception as e:
             logger.error(f"Failed to get current price for {symbol}: {e}")
             return None
+
+    @staticmethod
+    def _resolution_to_ms(resolution: str) -> int:
+        """Convert a Lighter candle resolution string into milliseconds."""
+        unit = resolution[-1]
+        value = int(resolution[:-1] or "1")
+        if unit == "m":
+            return value * 60 * 1000
+        if unit == "h":
+            return value * 60 * 60 * 1000
+        if unit == "d":
+            return value * 24 * 60 * 60 * 1000
+        raise ValueError(f"Unsupported candle resolution: {resolution}")
+
+    async def get_mark_price_candles(
+        self,
+        symbol: str,
+        resolution: str = "1m",
+        count_back: int = 5,
+        start_timestamp: Optional[int] = None,
+        end_timestamp: Optional[int] = None,
+    ) -> List[Dict]:
+        """Fetch historical mark-price candles from Lighter.
+
+        The SDK version currently installed exposes trade candles but not the
+        newer markPriceCandles endpoint, so this calls the generated API client
+        directly and normalizes the abbreviated response.
+        """
+        try:
+            market_id = await self._get_market_id(symbol)
+            end_timestamp = end_timestamp or int(time.time() * 1000)
+            if start_timestamp is None:
+                lookback_ms = self._resolution_to_ms(resolution) * max(count_back, 1)
+                start_timestamp = end_timestamp - lookback_ms
+
+            params = self.api_client.param_serialize(
+                method="GET",
+                resource_path="/api/v1/markPriceCandles",
+                query_params=[
+                    ("market_id", market_id),
+                    ("resolution", resolution),
+                    ("start_timestamp", start_timestamp),
+                    ("end_timestamp", end_timestamp),
+                    ("count_back", count_back),
+                ],
+                header_params={"Accept": "application/json"},
+            )
+            response = await self.api_client.call_api(*params)
+            await response.read()
+            if not 200 <= response.status <= 299:
+                raise ValueError(f"HTTP {response.status}: {response.data!r}")
+
+            payload = json.loads(response.data.decode("utf-8"))
+            candles = payload.get("c", []) if isinstance(payload, dict) else []
+            normalized = []
+            for candle in candles:
+                if not isinstance(candle, dict):
+                    continue
+                close = candle.get("c", candle.get("close"))
+                if close is None:
+                    continue
+                normalized.append({
+                    "timestamp": candle.get("t", candle.get("timestamp")),
+                    "open": float(candle.get("o", candle.get("open", close))),
+                    "high": float(candle.get("h", candle.get("high", close))),
+                    "low": float(candle.get("l", candle.get("low", close))),
+                    "close": float(close),
+                    "sample_count": candle.get("sc"),
+                    "market_id": market_id,
+                    "symbol": symbol,
+                    "resolution": payload.get("r", resolution) if isinstance(payload, dict) else resolution,
+                })
+
+            return sorted(normalized, key=lambda item: item.get("timestamp") or 0)
+        except Exception as e:
+            logger.error(f"Failed to fetch Lighter mark-price candles for {symbol}: {e}")
+            return []
+
+    async def get_latest_mark_price(self, symbol: str) -> Optional[float]:
+        """Return the latest mark price close for a symbol."""
+        candles = await self.get_mark_price_candles(symbol=symbol, count_back=5)
+        if not candles:
+            return None
+        return float(candles[-1]["close"])
+
+    async def _get_auth_token(self) -> str:
+        """Create a short-lived auth token for authenticated Lighter endpoints."""
+        await self._ensure_account_initialized()
+        if not self.signer_client:
+            raise ValueError("SignerClient not initialized. Cannot create auth token.")
+
+        auth, error = self.signer_client.create_auth_token_with_expiry(
+            api_key_index=CONFIG.LIGHTER_API_KEY_INDEX
+        )
+        if error:
+            raise ValueError(error)
+        return auth
+
+    def normalize_trade(self, trade: Any, account_index: Optional[int] = None) -> Dict:
+        """Normalize a Lighter trade while tolerating omitted counterparty fields."""
+        account_index = account_index if account_index is not None else self.account_index
+        ask_account_id = self._obj_get(trade, "ask_account_id")
+        bid_account_id = self._obj_get(trade, "bid_account_id")
+        is_maker_ask = bool(self._obj_get(trade, "is_maker_ask", False))
+
+        side = None
+        if account_index == ask_account_id:
+            side = "SELL"
+        elif account_index == bid_account_id:
+            side = "BUY"
+
+        maker_account_id = ask_account_id if is_maker_ask else bid_account_id
+        role = "maker" if account_index == maker_account_id else "taker"
+        fee_field = "maker_fee" if role == "maker" else "taker_fee"
+
+        return {
+            "trade_id": self._obj_get(trade, "trade_id"),
+            "trade_id_str": self._obj_get(trade, "trade_id_str"),
+            "tx_hash": self._obj_get(trade, "tx_hash"),
+            "type": self._obj_get(trade, "type"),
+            "market_id": self._obj_get(trade, "market_id"),
+            "size": self._obj_get(trade, "size"),
+            "price": self._obj_get(trade, "price"),
+            "usd_amount": self._obj_get(trade, "usd_amount"),
+            "timestamp": self._obj_get(trade, "timestamp"),
+            "transaction_time": self._obj_get(trade, "transaction_time"),
+            "side": side,
+            "role": role,
+            "fee": self._obj_get(trade, fee_field),
+            "maker_fee": self._obj_get(trade, "maker_fee"),
+            "taker_fee": self._obj_get(trade, "taker_fee"),
+            "ask_account_id": ask_account_id,
+            "bid_account_id": bid_account_id,
+            "is_maker_ask": is_maker_ask,
+        }
+
+    async def get_recent_trades(
+        self,
+        market_id: Optional[int] = None,
+        limit: int = 100,
+        cursor: Optional[str] = None,
+    ) -> Dict:
+        """Fetch and normalize recent account trades.
+
+        Lighter now retains only the last 3K trades for account-scoped queries.
+        Use get_trade_export for full history.
+        """
+        try:
+            await self._ensure_account_initialized()
+            auth = await self._get_auth_token()
+            response = await self.order_api.trades(
+                sort_by="timestamp",
+                sort_dir="desc",
+                limit=min(max(limit, 1), 100),
+                authorization=auth,
+                account_index=self.account_index,
+                market_id=market_id,
+                cursor=cursor,
+            )
+            trades = getattr(response, "trades", None) or []
+            return {
+                "trades": [self.normalize_trade(trade) for trade in trades],
+                "next_cursor": getattr(response, "next_cursor", None),
+            }
+        except Exception as e:
+            logger.error(f"Failed to fetch Lighter recent trades: {e}")
+            return {"error": str(e), "trades": []}
+
+    async def get_trade_export(
+        self,
+        market_id: Optional[int] = None,
+        start_timestamp: Optional[int] = None,
+        end_timestamp: Optional[int] = None,
+    ) -> Dict:
+        """Request a Lighter trade export for full account history."""
+        try:
+            auth = await self._get_auth_token()
+            response = await self.order_api.export(
+                authorization=auth,
+                type="trade",
+                account_index=self.account_index,
+                market_id=market_id,
+                start_timestamp=start_timestamp,
+                end_timestamp=end_timestamp,
+            )
+            return response.to_dict() if hasattr(response, "to_dict") else {
+                "data_url": getattr(response, "data_url", None),
+                "message": getattr(response, "message", None),
+            }
+        except Exception as e:
+            logger.error(f"Failed to request Lighter trade export: {e}")
+            return {"error": str(e)}
 
     async def _get_market_decimals(self, market_id: int) -> Dict[str, int]:
         """Get supported_price_decimals and supported_size_decimals for a market from Lighter API.
@@ -822,4 +1041,3 @@ class LighterExchange(BaseExchange):
     def get_min_notional_usd(self, asset: str) -> float:
         # Conservative default: $1
         return 1.0
-
