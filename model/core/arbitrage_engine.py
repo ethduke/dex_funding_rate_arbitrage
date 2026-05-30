@@ -216,13 +216,13 @@ class FundingArbitrageEngine:
                     rate1 = exchange_rates[ex1][asset]["rate"]
                     rate2 = exchange_rates[ex2][asset]["rate"]
                     
-                    potential_profit = abs(rate1) + abs(rate2)
+                    potential_profit = abs(rate2 - rate1)
                     
                     if potential_profit >= min_diff:
-                        long_ex = ex1 if rate1 < 0 else ex2
-                        short_ex = ex2 if rate1 < 0 else ex1
-                        long_rate = rate1 if rate1 < 0 else rate2
-                        short_rate = rate2 if rate1 < 0 else rate1
+                        long_ex = ex1 if rate1 < rate2 else ex2
+                        short_ex = ex2 if rate1 < rate2 else ex1
+                        long_rate = min(rate1, rate2)
+                        short_rate = max(rate1, rate2)
                         
                         # Get additional exchange data
                         long_ex_data = exchange_rates[long_ex][asset]

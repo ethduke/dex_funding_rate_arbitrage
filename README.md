@@ -26,5 +26,11 @@ pip install -r requirements.txt
 python main.py
 ```
 
+## Testing
+Run the deterministic automated tests:
+```bash
+python -m unittest discover -v
+```
+
 ## Note
 involves real money
