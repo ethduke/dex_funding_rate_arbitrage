@@ -58,7 +58,7 @@ h11==0.14.0
 hexbytes>=1.2.0
 httpcore==1.0.7
 httpx==0.28.1
-hyperliquid-python-sdk==0.12.0
+hyperliquid-python-sdk==0.23.0
 idna==3.10
 imap-tools==1.5.0
 inquirer==3.2.0
