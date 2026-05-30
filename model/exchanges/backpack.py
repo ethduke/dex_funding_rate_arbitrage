@@ -6,6 +6,7 @@ import requests
 import nacl.signing
 from utils.config import CONFIG
 from model.exchanges.base import BaseExchange
+from model.exchanges.normalized import BalanceSnapshot, FundingRate, OrderResult, Position, to_float
 from utils.logger import setup_logger
 from model.exchanges.backpack_ws import BackpackWebSocketClient
 import json
@@ -166,9 +167,33 @@ class BackpackExchange(BaseExchange):
             return {"error": "Empty response from API", "status_code": response.status_code}
             
         try:
-            return response.json()
+            positions = response.json()
+            if isinstance(positions, list):
+                return [self._normalize_position(position) for position in positions]
+            return positions
         except Exception as e:
             return {"error": f"Failed to parse JSON response: {str(e)}", "response": response.text}
+
+    def _normalize_position(self, position: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize Backpack position fields while keeping API keys intact."""
+        symbol = position.get("symbol", "")
+        asset = symbol.split("_")[0] if symbol else ""
+        size = to_float(
+            position.get("netQuantity", position.get("positionSize", 0))
+        )
+        normalized = Position(
+            asset=asset,
+            exchange="Backpack",
+            symbol=symbol,
+            size=size,
+            side="long" if size > 0 else ("short" if size < 0 else None),
+            entry_price=to_float(position.get("avgEntryPrice"), None),
+            unrealized_pnl=to_float(position.get("pnlUnrealized"), None),
+            raw=position,
+        ).to_dict()
+        compatible = dict(position)
+        compatible.update(normalized)
+        return compatible
 
     def get_balances(self) -> Dict:
         """Get account balances and states (locked/available)."""
@@ -222,21 +247,29 @@ class BackpackExchange(BaseExchange):
 
     def get_equity_usd(self) -> float:
         """Return net equity or available equity from collateral endpoint when possible."""
+        return self.get_balance_snapshot().available_usd
+
+    def get_balance_snapshot(self, asset: Optional[str] = None) -> BalanceSnapshot:
+        """Return normalized Backpack collateral in USD terms."""
         try:
             coll = self.get_collateral()
             if isinstance(coll, dict) and coll.get("error"):
-                return 0.0
+                return BalanceSnapshot(exchange="Backpack", available_usd=0.0, raw=coll)
             # Try common fields from docs: netEquityAvailable, netEquity
+            available = 0.0
             for key in ("netEquityAvailable", "netEquity", "assetsValue"):
                 val = coll.get(key)
                 if val is not None:
-                    try:
-                        return float(val)
-                    except Exception:
-                        continue
+                    available = to_float(val)
+                    break
+            return BalanceSnapshot(
+                exchange="Backpack",
+                available_usd=available,
+                total_usd=to_float(coll.get("netEquity"), available),
+                raw=coll,
+            )
         except Exception:
-            return 0.0
-        return 0.0
+            return BalanceSnapshot(exchange="Backpack", available_usd=0.0)
 
     # Unified balance/min-notional
     def get_available_usd(self, asset: Optional[str] = None) -> float:
@@ -293,15 +326,71 @@ class BackpackExchange(BaseExchange):
         
         # Check response status and content before parsing JSON
         if response.status_code != 200:
-            return {"error": f"API error: status code {response.status_code}", "response": response.text}
+            return OrderResult(
+                exchange="Backpack",
+                success=False,
+                asset=symbol.split("_")[0],
+                side=side,
+                size=quote_quantity or quantity,
+                error=f"API error: status code {response.status_code}",
+                message=response.text,
+                raw={"response": response.text, "status_code": response.status_code},
+            ).to_dict()
         
         if not response.text:
-            return {"error": "Empty response from API", "status_code": response.status_code}
+            return OrderResult(
+                exchange="Backpack",
+                success=False,
+                asset=symbol.split("_")[0],
+                side=side,
+                size=quote_quantity or quantity,
+                error="Empty response from API",
+                raw={"status_code": response.status_code},
+            ).to_dict()
             
         try:
-            return response.json()
+            return self._normalize_order_result(
+                response.json(),
+                symbol=symbol,
+                side=side,
+                size=quote_quantity or quantity,
+            )
         except Exception as e:
-            return {"error": f"Failed to parse JSON response: {str(e)}", "response": response.text}
+            return OrderResult(
+                exchange="Backpack",
+                success=False,
+                asset=symbol.split("_")[0],
+                side=side,
+                size=quote_quantity or quantity,
+                error=f"Failed to parse JSON response: {str(e)}",
+                message=response.text,
+                raw={"response": response.text},
+            ).to_dict()
+
+    def _normalize_order_result(
+        self,
+        raw_result: Any,
+        symbol: str,
+        side: str,
+        size: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        raw = raw_result if isinstance(raw_result, dict) else {"response": raw_result}
+        success = raw.get("status") != "error" and "error" not in raw
+        normalized = OrderResult(
+            exchange="Backpack",
+            success=success,
+            asset=symbol.split("_")[0],
+            side=side,
+            size=to_float(size, None),
+            price=to_float(raw.get("avgFillPrice") or raw.get("price"), None),
+            order_id=raw.get("id") or raw.get("orderId"),
+            error=raw.get("error") if not success else None,
+            message=raw.get("message"),
+            raw=raw,
+        ).to_dict()
+        compatible = dict(raw)
+        compatible.update(normalized)
+        return compatible
     
     def close_position(
         self,
@@ -473,14 +562,16 @@ class BackpackExchange(BaseExchange):
             
         for item in mark_prices:
             try:
-                symbol = item.get("symbol", "").split("_")[0]  
-                result[symbol] = {
-                    "rate": float(item.get("fundingRate", "0")),
-                    "next_funding_time": item.get("nextFundingTimestamp", 0),
-                    "exchange": "Backpack",
-                    "mark_price": float(item.get("markPrice", "0")),
-                    "index_price": float(item.get("indexPrice", "0"))
-                }
+                symbol = item.get("symbol", "").split("_")[0]
+                result[symbol] = FundingRate(
+                    asset=symbol,
+                    exchange="Backpack",
+                    rate=to_float(item.get("fundingRate")),
+                    next_funding_time=item.get("nextFundingTimestamp", 0),
+                    mark_price=to_float(item.get("markPrice")),
+                    index_price=to_float(item.get("indexPrice")),
+                    raw=item,
+                ).to_dict()
             except Exception as e:
                 logger.error(f"Error processing mark price item: {e}, item: {item}")
                 

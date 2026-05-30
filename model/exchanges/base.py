@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any, Callable
 
+from model.exchanges.normalized import BalanceSnapshot
+
 class BaseExchange(ABC):
     """Base class for all exchange implementations."""
     
@@ -63,6 +65,13 @@ class BaseExchange(ABC):
         Default implementation returns 0. Exchanges should override.
         """
         return 0.0
+
+    def get_balance_snapshot(self, asset: Optional[str] = None) -> BalanceSnapshot:
+        """Return a normalized balance snapshot for operators and risk checks."""
+        return BalanceSnapshot(
+            exchange=self.__class__.__name__.replace("Exchange", ""),
+            available_usd=self.get_available_usd(asset),
+        )
 
     def get_min_notional_usd(self, asset: str) -> float:
         """Return minimum USD notional required to open a position for asset.

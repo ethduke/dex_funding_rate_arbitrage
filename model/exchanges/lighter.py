@@ -5,6 +5,7 @@ import time
 import asyncio
 from model.exchanges.base import BaseExchange
 from model.exchanges.lighter_ws import LighterWebSocketClient
+from model.exchanges.normalized import BalanceSnapshot, FundingRate, OrderResult, Position, to_float
 from typing import Dict, List, Optional, Any, Callable, Tuple
 from utils.config import CONFIG
 from utils.logger import setup_logger
@@ -234,13 +235,15 @@ class LighterExchange(BaseExchange):
             # This should match the format used by other exchanges
             for symbol, data in raw_data.items():
                 try:
-                    result[symbol] = {
-                        "rate": float(data.get("rate", 0)),
-                        "next_funding_time": data.get("next_funding_time", 0),
-                        "exchange": "Lighter",
-                        "mark_price": float(data.get("mark_price", 0)),
-                        "index_price": float(data.get("index_price", 0))
-                    }
+                    result[symbol] = FundingRate(
+                        asset=symbol,
+                        exchange="Lighter",
+                        rate=to_float(data.get("rate")),
+                        next_funding_time=data.get("next_funding_time", 0),
+                        mark_price=to_float(data.get("mark_price")),
+                        index_price=to_float(data.get("index_price")),
+                        raw=data,
+                    ).to_dict()
                 except Exception as e:
                     logger.error(f"Error processing funding rate for {symbol}: {e}")
                     
@@ -262,15 +265,19 @@ class LighterExchange(BaseExchange):
                 account = account_details.accounts[0]
                 for position in account.positions:
                     if float(position.position) != 0:  # Only include non-zero positions
-                        positions.append({
-                            "symbol": position.symbol,
-                            "size": float(position.position),
-                            "side": "long" if float(position.position) > 0 else "short",
-                            "entry_price": float(position.avg_entry_price),
-                            "unrealized_pnl": float(position.unrealized_pnl),
-                            "realized_pnl": float(position.realized_pnl),
-                            "market_id": position.market_id
-                        })
+                        size = to_float(position.position)
+                        normalized = Position(
+                            asset=position.symbol,
+                            exchange="Lighter",
+                            symbol=position.symbol,
+                            size=size,
+                            side="long" if size > 0 else "short",
+                            entry_price=to_float(position.avg_entry_price),
+                            unrealized_pnl=to_float(position.unrealized_pnl),
+                            realized_pnl=to_float(position.realized_pnl),
+                            market_id=position.market_id,
+                        ).to_dict()
+                        positions.append(normalized)
             
             return positions
             
@@ -291,7 +298,14 @@ class LighterExchange(BaseExchange):
             await self._ensure_account_initialized()
             
             if not self.signer_client:
-                return {"error": "SignerClient not initialized. Cannot place orders."}
+                return OrderResult(
+                    exchange="Lighter",
+                    success=False,
+                    asset=symbol,
+                    side=side,
+                    error="SignerClient not initialized. Cannot place orders.",
+                    message="SignerClient not initialized. Cannot place orders.",
+                ).to_dict()
             
             # Convert symbol to market_id
             market_id = await self._get_market_id(symbol)
@@ -305,7 +319,14 @@ class LighterExchange(BaseExchange):
             estimated_price = await self._get_estimated_price(symbol)
             if not estimated_price or estimated_price <= 0:
                 logger.warning(f"Could not estimate price for {symbol}; aborting order placement")
-                return {"error": f"No price available for {symbol}; order aborted"}
+                return OrderResult(
+                    exchange="Lighter",
+                    success=False,
+                    asset=symbol,
+                    side=side,
+                    error=f"No price available for {symbol}; order aborted",
+                    message=f"No price available for {symbol}; order aborted",
+                ).to_dict()
 
             # Determine the base amount using proper sizeDecimal scaling
             if quote_quantity is not None:
@@ -316,7 +337,14 @@ class LighterExchange(BaseExchange):
                 # If quantity is provided, scale by sizeDecimal
                 base_amount = int(quantity * (10 ** size_decimal))
             else:
-                return {"error": "Either quantity or quote_quantity must be provided"}
+                return OrderResult(
+                    exchange="Lighter",
+                    success=False,
+                    asset=symbol,
+                    side=side,
+                    error="Either quantity or quote_quantity must be provided",
+                    message="Either quantity or quote_quantity must be provided",
+                ).to_dict()
             
             # Ensure base_amount is at least 1 (minimum order size)
             if base_amount < 1:
@@ -353,11 +381,39 @@ class LighterExchange(BaseExchange):
             tx = (created, api_resp, err)
             
             logger.info(f"Lighter market order created: {tx}")
-            return {"status": "success", "tx": tx}
+            if err:
+                return OrderResult(
+                    exchange="Lighter",
+                    success=False,
+                    asset=symbol,
+                    side=side,
+                    size=base_amount,
+                    error=str(err),
+                    message=str(err),
+                    raw={"created": created, "api_resp": api_resp, "err": err},
+                ).to_dict()
+            result = OrderResult(
+                exchange="Lighter",
+                success=True,
+                asset=symbol,
+                side=side,
+                size=base_amount,
+                raw={"created": created, "api_resp": api_resp, "err": err},
+            ).to_dict()
+            result["status"] = "success"
+            result["tx"] = tx
+            return result
             
         except Exception as e:
             logger.error(f"Failed to place market order: {e}")
-            return {"error": f"Failed to place market order: {str(e)}"}
+            return OrderResult(
+                exchange="Lighter",
+                success=False,
+                asset=symbol,
+                side=side,
+                error=f"Failed to place market order: {str(e)}",
+                message=f"Failed to place market order: {str(e)}",
+            ).to_dict()
 
     async def place_market_order(
         self,
@@ -998,7 +1054,15 @@ class LighterExchange(BaseExchange):
                         else 0.1
                     )
                 )
-                balance_info = {
+                balance_snapshot = BalanceSnapshot(
+                    exchange="Lighter",
+                    available_usd=free_collateral,
+                    total_usd=float(account.total_asset_value) if hasattr(account, 'total_asset_value') else 0.0,
+                    account_id=self.account_index,
+                    positions_count=len(account.positions) if hasattr(account, 'positions') else 0,
+                )
+                balance_info = balance_snapshot.to_dict()
+                balance_info.update({
                     'account_index': self.account_index,
                     'account_type': account.account_type,
                     'collateral': float(account.collateral) if hasattr(account, 'collateral') else 0.0,
@@ -1006,21 +1070,23 @@ class LighterExchange(BaseExchange):
                     'free_collateral': free_collateral,
                     'positions_count': len(account.positions) if hasattr(account, 'positions') else 0,
                     'timestamp': datetime.now().isoformat()
-                }
+                })
                 
                 # Extract positions if available
                 if hasattr(account, 'positions') and account.positions:
                     balance_info['positions'] = []
                     for position in account.positions:
-                        pos_info = {
-                            'symbol': position.symbol,
-                            'size': float(position.position),
-                            'side': 'long' if float(position.position) > 0 else 'short',
-                            'entry_price': float(position.avg_entry_price),
-                            'unrealized_pnl': float(position.unrealized_pnl),
-                            'market_id': position.market_id
-                        }
-                        balance_info['positions'].append(pos_info)
+                        size = to_float(position.position)
+                        balance_info['positions'].append(Position(
+                            asset=position.symbol,
+                            exchange="Lighter",
+                            symbol=position.symbol,
+                            size=size,
+                            side='long' if size > 0 else 'short',
+                            entry_price=to_float(position.avg_entry_price),
+                            unrealized_pnl=to_float(position.unrealized_pnl),
+                            market_id=position.market_id,
+                        ).to_dict())
                 
                 logger.debug(f"Real balance fetched: ${balance_info['total_asset_value']:.2f} total, ${balance_info['free_collateral']:.2f} free")
                 return balance_info

@@ -7,6 +7,7 @@ from hyperliquid.exchange import Exchange
 from hyperliquid.info import Info
 from utils.config import CONFIG
 from model.exchanges.base import BaseExchange
+from model.exchanges.normalized import BalanceSnapshot, FundingRate, OrderResult, Position, to_float
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -71,10 +72,35 @@ class HyperliquidExchange(BaseExchange):
         """Get current positions."""
         try:
             user_state = self.info.user_state(self.address)
-            return user_state.get("assetPositions", [])
+            positions = user_state.get("assetPositions", [])
+            return [self._normalize_position(position) for position in positions]
         except Exception as e:
             logger.error(f"Error getting positions: {e}")
             return []
+
+    def _normalize_position(self, position: Dict[str, Any]) -> Dict[str, Any]:
+        """Flatten Hyperliquid SDK positions into the shared position shape."""
+        raw_position = position.get("position", position)
+        asset = raw_position.get("coin", "")
+        size = to_float(raw_position.get("szi"))
+        normalized = Position(
+            asset=asset,
+            exchange="Hyperliquid",
+            symbol=asset,
+            size=size,
+            side="long" if size > 0 else ("short" if size < 0 else None),
+            entry_price=to_float(raw_position.get("entryPx"), None),
+            unrealized_pnl=to_float(raw_position.get("unrealizedPnl"), None),
+            raw=position,
+        ).to_dict()
+        compatible = dict(position)
+        compatible.update(raw_position)
+        compatible.update(normalized)
+        compatible["coin"] = asset
+        compatible["szi"] = str(size)
+        if normalized.get("entry_price") is not None:
+            compatible["entryPx"] = str(normalized["entry_price"])
+        return compatible
     
     def get_market_data(self, asset: str) -> Dict:
         """Get current market data for an asset.
@@ -155,16 +181,28 @@ class HyperliquidExchange(BaseExchange):
 
     # Unified balance/min-notional
     def get_available_usd(self, asset: Optional[str] = None) -> float:
+        return self.get_balance_snapshot(asset).available_usd
+
+    def get_balance_snapshot(self, asset: Optional[str] = None) -> BalanceSnapshot:
+        """Return normalized Hyperliquid margin availability."""
         try:
             us = self.info.user_state(self.address)
             cms = us.get("crossMarginSummary", {}) if isinstance(us, dict) else {}
-            withdrawable = float(cms.get("withdrawable", 0)) if cms else 0.0
+            withdrawable = to_float(us.get("withdrawable")) if isinstance(us, dict) else 0.0
             if withdrawable > 0:
-                return withdrawable
-            equity = float(cms.get("accountValue", 0)) if cms else 0.0
-            return equity
+                available = withdrawable
+            else:
+                available = to_float(cms.get("accountValue")) if cms else 0.0
+            return BalanceSnapshot(
+                exchange="Hyperliquid",
+                available_usd=available,
+                total_usd=to_float(cms.get("accountValue")) if cms else 0.0,
+                account_id=self.address,
+                positions_count=len(us.get("assetPositions", [])) if isinstance(us, dict) else None,
+                raw=us if isinstance(us, dict) else {},
+            )
         except Exception:
-            return 0.0
+            return BalanceSnapshot(exchange="Hyperliquid", available_usd=0.0)
 
     def get_min_notional_usd(self, asset: str) -> float:
         # Conservative default: $1
@@ -191,7 +229,14 @@ class HyperliquidExchange(BaseExchange):
             size = quantity if quantity is not None else quote_quantity
             
             if size is None:
-                return {"status": "error", "message": "Either quantity or quote_quantity must be provided"}
+                return OrderResult(
+                    exchange="Hyperliquid",
+                    success=False,
+                    asset=symbol,
+                    side=side,
+                    error="Either quantity or quote_quantity must be provided",
+                    message="Either quantity or quote_quantity must be provided",
+                ).to_dict()
             
             # Handle precision errors by rounding size to appropriate decimals
             if size > 0:
@@ -200,7 +245,14 @@ class HyperliquidExchange(BaseExchange):
                 
                 # If size becomes 0 after rounding, return error
                 if size == 0:
-                    return {"status": "error", "message": f"Size too small for {symbol} after precision adjustment"}
+                    return OrderResult(
+                        exchange="Hyperliquid",
+                        success=False,
+                        asset=symbol,
+                        side=side,
+                        error=f"Size too small for {symbol} after precision adjustment",
+                        message=f"Size too small for {symbol} after precision adjustment",
+                    ).to_dict()
             
             slippage = 0.01  # 1% slippage tolerance
             order_result = self.exchange.market_open(
@@ -210,20 +262,66 @@ class HyperliquidExchange(BaseExchange):
                 None,      
                 slippage  
             )
-            return order_result
+            return self._normalize_order_result(
+                raw_result=order_result,
+                asset=symbol,
+                side="BUY" if is_buy else "SELL",
+                size=size,
+            )
         except Exception as e:
             logger.error(f"Error placing market order: {e}")
-            return {"status": "error", "message": str(e)}
+            return OrderResult(
+                exchange="Hyperliquid",
+                success=False,
+                asset=symbol,
+                side=side,
+                error=str(e),
+                message=str(e),
+            ).to_dict()
     
     def close_position(self, symbol: str) -> Dict:
         """Close position for a specific coin."""
         try:
             # Use the exact function signature from the example
             order_result = self.exchange.market_close(symbol)
-            return order_result
+            return self._normalize_order_result(
+                raw_result=order_result,
+                asset=symbol,
+                side="CLOSE",
+            )
         except Exception as e:
             logger.error(f"Error closing position: {e}")
-            return {"status": "error", "message": str(e)}
+            return OrderResult(
+                exchange="Hyperliquid",
+                success=False,
+                asset=symbol,
+                side="CLOSE",
+                error=str(e),
+                message=str(e),
+            ).to_dict()
+
+    def _normalize_order_result(
+        self,
+        raw_result: Any,
+        asset: str,
+        side: str,
+        size: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        raw = raw_result if isinstance(raw_result, dict) else {"response": raw_result}
+        success = raw.get("status") != "error" and "error" not in raw
+        normalized = OrderResult(
+            exchange="Hyperliquid",
+            success=success,
+            asset=asset,
+            side=side,
+            size=size,
+            error=raw.get("error") if not success else None,
+            message=raw.get("message"),
+            raw=raw,
+        ).to_dict()
+        compatible = dict(raw)
+        compatible.update(normalized)
+        return compatible
     
     def get_sz_decimals(self, asset: str) -> int:
         """Get the size decimals for an asset from the universe metadata."""
@@ -256,7 +354,14 @@ class HyperliquidExchange(BaseExchange):
         """Open a long position with USD amount."""
         token_amount = self.usd_to_token_size(asset, usd_amount)
         if token_amount <= 0:
-            return {"status": "error", "message": f"Invalid conversion for {asset}"}
+            return OrderResult(
+                exchange="Hyperliquid",
+                success=False,
+                asset=asset,
+                side="BUY",
+                error=f"Invalid conversion for {asset}",
+                message=f"Invalid conversion for {asset}",
+            ).to_dict()
             
         return self.place_market_order(
             symbol=asset,
@@ -268,7 +373,14 @@ class HyperliquidExchange(BaseExchange):
         """Open a short position with USD amount."""
         token_amount = self.usd_to_token_size(asset, usd_amount)
         if token_amount <= 0:
-            return {"status": "error", "message": f"Invalid conversion for {asset}"}
+            return OrderResult(
+                exchange="Hyperliquid",
+                success=False,
+                asset=asset,
+                side="SELL",
+                error=f"Invalid conversion for {asset}",
+                message=f"Invalid conversion for {asset}",
+            ).to_dict()
             
         return self.place_market_order(
             symbol=asset,
@@ -299,9 +411,13 @@ class HyperliquidExchange(BaseExchange):
             asset = asset_data[0]
             for venue_data in asset_data[1]:
                 if venue_data[0] == "HlPerp":  # Only use Hyperliquid's own rate
-                    result[asset] = {
-                        "rate": float(venue_data[1].get("fundingRate", "0")),
-                        "next_funding_time": venue_data[1].get("nextFundingTime", 0),
-                        "exchange": "Hyperliquid"
-                    }
+                    data = venue_data[1]
+                    result[asset] = FundingRate(
+                        asset=asset,
+                        exchange="Hyperliquid",
+                        rate=to_float(data.get("fundingRate")),
+                        next_funding_time=data.get("nextFundingTime", 0),
+                        funding_interval_hours=to_float(data.get("fundingIntervalHours"), None),
+                        raw=data,
+                    ).to_dict()
         return result
