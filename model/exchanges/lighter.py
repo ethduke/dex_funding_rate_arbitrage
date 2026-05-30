@@ -15,6 +15,8 @@ from datetime import datetime
 
 logger = setup_logger(__name__)
 
+MARKET_METADATA_TTL_SECONDS = 15 * 60
+
 class LighterExchange(BaseExchange):
     def __init__(self, use_ws: bool = False, order_book_ids: List[int] = None):
         super().__init__()
@@ -41,6 +43,9 @@ class LighterExchange(BaseExchange):
         
         # Cache for market decimals (sizeDecimal, priceDecimal)
         self._market_decimals_cache = {}
+        self._market_decimals_cache_ts = {}
+        self._market_mapping_cache = {}
+        self._market_mapping_cache_ts = 0.0
         
         # Initialize credentials
         self.account_index = None
@@ -560,7 +565,7 @@ class LighterExchange(BaseExchange):
 
     async def get_all_markets(self) -> Dict[int, str]:
         """Get all available markets with their IDs and symbols"""
-        return await self._fetch_market_info()
+        return await self.refresh_market_mapping()
 
     def get_market_count(self) -> int:
         """Get the total number of markets"""
@@ -574,7 +579,10 @@ class LighterExchange(BaseExchange):
 
     async def _ensure_market_mapping_loaded(self):
         """Ensure market mapping is loaded from API"""
-        if not self._get_cached_market_mapping():
+        if (
+            not self._get_cached_market_mapping()
+            or self._market_metadata_expired(self._market_mapping_cache_ts)
+        ):
             await self._fetch_market_info()
 
     def _get_cached_market_mapping(self) -> Dict[int, str]:
@@ -582,11 +590,28 @@ class LighterExchange(BaseExchange):
         if not hasattr(self, '_market_mapping_cache'):
             # Initialize with empty cache - will be populated on first API call
             self._market_mapping_cache = {}
+        if not hasattr(self, '_market_mapping_cache_ts'):
+            self._market_mapping_cache_ts = 0.0
         return self._market_mapping_cache
+
+    @staticmethod
+    def _market_metadata_expired(timestamp: float) -> bool:
+        return not timestamp or (time.time() - timestamp) > MARKET_METADATA_TTL_SECONDS
+
+    async def refresh_market_metadata(self, force: bool = True) -> Dict[int, str]:
+        """Refresh cached market mapping and clear per-market decimal metadata."""
+        mapping = await self.refresh_market_mapping(force=force)
+        self._market_decimals_cache.clear()
+        self._market_decimals_cache_ts.clear()
+        return mapping
 
     async def refresh_market_mapping(self, force: bool = False) -> Dict[int, str]:
         """Refresh market mapping from API if empty or force=True, then return it."""
-        if force or not self._get_cached_market_mapping():
+        if (
+            force
+            or not self._get_cached_market_mapping()
+            or self._market_metadata_expired(self._market_mapping_cache_ts)
+        ):
             await self._fetch_market_info()
         return self._get_cached_market_mapping()
 
@@ -620,6 +645,7 @@ class LighterExchange(BaseExchange):
                 if isinstance(data, dict):
                     # keys might be strings when loaded from json; coerce to int
                     self._market_mapping_cache = {int(k): v for k, v in data.items()}
+                    self._market_mapping_cache_ts = time.time()
                     logger.info(f"Loaded Lighter market mapping from {path} ({len(self._market_mapping_cache)} markets)")
                     return True
         except Exception as e:
@@ -647,6 +673,7 @@ class LighterExchange(BaseExchange):
             
             # Cache the results
             self._market_mapping_cache = markets
+            self._market_mapping_cache_ts = time.time()
             
             logger.info(f"Discovered {len(markets)} markets from Lighter API")
             return markets
@@ -980,6 +1007,18 @@ class LighterExchange(BaseExchange):
         Returns:
             Dict with 'sizeDecimal' and 'priceDecimal' keys
         """
+        cached = self._market_decimals_cache.get(market_id)
+        cached_ts = self._market_decimals_cache_ts.get(market_id, 0.0)
+        if cached and not self._market_metadata_expired(cached_ts):
+            return cached
+
+        if market_id in self._market_decimals_cache:
+            self._market_decimals_cache.pop(market_id, None)
+            self._market_decimals_cache_ts.pop(market_id, None)
+
+        if self._market_metadata_expired(self._market_mapping_cache_ts):
+            await self.refresh_market_mapping()
+
         if market_id in self._market_decimals_cache:
             return self._market_decimals_cache[market_id]
         
@@ -999,6 +1038,7 @@ class LighterExchange(BaseExchange):
                         
                         # Cache the result
                         self._market_decimals_cache[market_id] = decimals
+                        self._market_decimals_cache_ts[market_id] = time.time()
                         logger.debug(f"Fetched decimals for market {market_id}: {decimals}")
                         
                         return decimals

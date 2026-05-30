@@ -3,6 +3,7 @@ import eth_account
 import logging
 import requests
 import math
+import time
 from hyperliquid.exchange import Exchange
 from hyperliquid.info import Info
 from utils.config import CONFIG
@@ -11,6 +12,9 @@ from model.exchanges.normalized import BalanceSnapshot, FundingRate, OrderResult
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
+
+MARKET_METADATA_TTL_SECONDS = 15 * 60
+MARKET_PRICE_TTL_SECONDS = 5
 
 class HyperliquidExchange(BaseExchange):
     def __init__(self):
@@ -32,6 +36,37 @@ class HyperliquidExchange(BaseExchange):
         
         self.info = Info(self.base_url, skip_ws=False)
         self.exchange = Exchange(self.account, self.base_url, account_address=self.address)
+        self._meta_cache = None
+        self._meta_cache_ts = 0.0
+        self._all_mids_cache = None
+        self._all_mids_cache_ts = 0.0
+
+    @staticmethod
+    def _cache_expired(timestamp: float, ttl_seconds: int) -> bool:
+        return not timestamp or (time.time() - timestamp) > ttl_seconds
+
+    def refresh_market_metadata(self) -> None:
+        """Clear cached market metadata and prices so the next call refreshes."""
+        self._meta_cache = None
+        self._meta_cache_ts = 0.0
+        self._all_mids_cache = None
+        self._all_mids_cache_ts = 0.0
+
+    def _get_perp_meta(self, force: bool = False) -> Dict:
+        if force or self._meta_cache is None or self._cache_expired(
+            self._meta_cache_ts, MARKET_METADATA_TTL_SECONDS
+        ):
+            self._meta_cache = self.info.meta()
+            self._meta_cache_ts = time.time()
+        return self._meta_cache
+
+    def _get_all_mids(self, force: bool = False) -> Dict:
+        if force or self._all_mids_cache is None or self._cache_expired(
+            self._all_mids_cache_ts, MARKET_PRICE_TTL_SECONDS
+        ):
+            self._all_mids_cache = self.info.all_mids()
+            self._all_mids_cache_ts = time.time()
+        return self._all_mids_cache
             
     def get_funding_rates(self) -> Dict:
         """Get predicted funding rates from the Hyperliquid API."""
@@ -108,46 +143,22 @@ class HyperliquidExchange(BaseExchange):
         Returns a dict with price and metadata or empty dict if not found.
         """
         try:
-            # Most direct way to get market data
-            response = requests.post(
-                f"{CONFIG.get('HYPERLIQUID_API_URL_INFO')}",
-                headers={"Content-Type": "application/json"},
-                json={"type": "marketData"},
-                timeout=5
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"Failed to get market data. Status code: {response.status_code}")
+            all_prices = self._get_all_mids()
+            meta_data = self._get_perp_meta()
+            price = all_prices.get(asset)
+            if price is None:
                 return {}
-                
-            market_data = response.json()
-            
-            # Also get universe metadata for szDecimals
-            meta_response = requests.post(
-                f"{CONFIG.get('HYPERLIQUID_API_URL_INFO')}",
-                headers={"Content-Type": "application/json"},
-                json={"type": "meta"},
-                timeout=5
-            )
-            
+
             asset_info = {}
-            if meta_response.status_code == 200:
-                meta_data = meta_response.json()
-                for item in meta_data.get("universe", []):
-                    if item.get("name") == asset:
-                        asset_info = item
-                        break
-            
-            # Find the asset in market data
-            for item in market_data:
-                if item.get("coin") == asset:
-                    # Combine with metadata
-                    return {
-                        "price": float(item.get("markPx", 0)),
-                        "szDecimals": asset_info.get("szDecimals", 2)
-                    }
-            
-            return {}
+            for item in meta_data.get("universe", []):
+                if item.get("name") == asset:
+                    asset_info = item
+                    break
+
+            return {
+                "price": float(price),
+                "szDecimals": asset_info.get("szDecimals", 2)
+            }
             
         except Exception as e:
             logger.error(f"Error getting market data: {e}")
@@ -155,25 +166,18 @@ class HyperliquidExchange(BaseExchange):
     
     def get_price_from_api(self, asset: str, usd_amount: float) -> float:
         try:
-            meta_response = requests.post(
-                f"{CONFIG.get('HYPERLIQUID_API_URL_INFO')}",
-                headers={"Content-Type": "application/json"},
-                json={"type": "allMids"},
-                timeout=5
-            )
-            if meta_response.status_code == 200:
-                all_prices = meta_response.json()
-                price = float(all_prices.get(asset))
-                # Convert USD amount to token amount
-                token_amount = usd_amount / price
-                
-                # Get proper decimal precision for this asset
-                sz_decimals = self.get_sz_decimals(asset)
-                
-                # Round to the appropriate decimal places to avoid precision errors
-                token_amount = math.floor(token_amount * (10 ** sz_decimals)) / (10 ** sz_decimals)
-                
-                return token_amount
+            all_prices = self._get_all_mids()
+            price = float(all_prices.get(asset))
+            # Convert USD amount to token amount
+            token_amount = usd_amount / price
+
+            # Get proper decimal precision for this asset
+            sz_decimals = self.get_sz_decimals(asset)
+
+            # Round to the appropriate decimal places to avoid precision errors
+            token_amount = math.floor(token_amount * (10 ** sz_decimals)) / (10 ** sz_decimals)
+
+            return token_amount
         except Exception as e:
             logger.error(f"Error in fallback price lookup: {str(e)}")
         
@@ -326,18 +330,7 @@ class HyperliquidExchange(BaseExchange):
     def get_sz_decimals(self, asset: str) -> int:
         """Get the size decimals for an asset from the universe metadata."""
         try:
-            response = requests.post(
-                f"{CONFIG.get('HYPERLIQUID_API_URL_INFO')}",
-                headers={"Content-Type": "application/json"},
-                json={"type": "meta"},
-                timeout=5
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"Failed to get asset metadata. Status code: {response.status_code}")
-                return 2  # Default to 2 decimals
-                
-            data = response.json()
+            data = self._get_perp_meta()
             
             # Find the asset in the universe
             for asset_meta in data.get("universe", []):
