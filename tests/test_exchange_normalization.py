@@ -2,14 +2,11 @@ import os
 import unittest
 
 
-os.environ.setdefault("BACKPACK_API_SECRET", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+os.environ.setdefault("BACKPACK_API_SECRET", "test-backpack-secret")
 os.environ.setdefault("BACKPACK_API_KEY", "test-api-key")
-os.environ.setdefault(
-    "HYPERLIQUID_API_PRIVATE_KEY",
-    "0x" + "1" * 64,
-)
-os.environ.setdefault("HYPERLIQUID_ADDRESS", "0x" + "2" * 40)
-os.environ.setdefault("LIGHTER_PRIVATE_KEY", "0x" + "3" * 80)
+os.environ.setdefault("HYPERLIQUID_API_PRIVATE_KEY", "test-hyperliquid-private-key")
+os.environ.setdefault("HYPERLIQUID_ADDRESS", "test-hyperliquid-address")
+os.environ.setdefault("LIGHTER_PRIVATE_KEY", "test-lighter-private-key")
 
 from model.exchanges.backpack import BackpackExchange
 from model.exchanges.base import BaseExchange
