@@ -54,6 +54,14 @@ class Config:
         self.LIGHTER_API_URL = config.get("LIGHTER_API_URL", "https://mainnet.zklighter.elliot.ai/")
         self.LIGHTER_API_KEY_INDEX = int(config.get("LIGHTER_API_KEY_INDEX", 2))
         self.LIGHTER_ACCOUNT_INDEX = int(config.get("LIGHTER_ACCOUNT_INDEX", 5725))
+        self.LIGHTER_SELF_TRADE_BEHAVIOR_MODE = int(config.get("LIGHTER_SELF_TRADE_BEHAVIOR_MODE", 0))
+        self.LIGHTER_SELF_TRADE_EQUALITY_MODE = int(config.get("LIGHTER_SELF_TRADE_EQUALITY_MODE", 0))
+        if self.LIGHTER_SELF_TRADE_BEHAVIOR_MODE not in range(4):
+            raise ValueError("LIGHTER_SELF_TRADE_BEHAVIOR_MODE must be one of 0, 1, 2, 3")
+        if self.LIGHTER_SELF_TRADE_EQUALITY_MODE not in range(2):
+            raise ValueError("LIGHTER_SELF_TRADE_EQUALITY_MODE must be one of 0, 1")
+        if self.LIGHTER_SELF_TRADE_BEHAVIOR_MODE == 3 and self.LIGHTER_SELF_TRADE_EQUALITY_MODE == 1:
+            raise ValueError("Lighter REDUCE self-trade behavior cannot use MASTER_ACCOUNT_INDEX equality")
 
         # Arbitrage Engine Configuration
         self.POSITION_SIZE = float(config.get("POSITION_SIZE"))

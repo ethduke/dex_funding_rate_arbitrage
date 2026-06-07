@@ -1,4 +1,5 @@
 import lighter
+import inspect
 import json
 import os
 import time
@@ -360,6 +361,8 @@ class LighterExchange(BaseExchange):
             
             # Use SDK helper to constrain execution by slippage instead of arbitrary bounds
             max_slippage = float(CONFIG.get("LIGHTER_MAX_SLIPPAGE", 0.01))
+            self_trade_behavior_mode = CONFIG.LIGHTER_SELF_TRADE_BEHAVIOR_MODE
+            self_trade_equality_mode = CONFIG.LIGHTER_SELF_TRADE_EQUALITY_MODE
 
             # Log order parameters for debugging
             logger.info(f"🔍 Order parameters:")
@@ -371,17 +374,43 @@ class LighterExchange(BaseExchange):
             logger.info(f"   Max slippage: {max_slippage}")
             logger.info(f"   Is ask: {is_ask}")
             logger.info(f"   Reduce only: {reduce_only}")
-            
-            # Prefer limited slippage market to avoid cancellations
-            created, api_resp, err = await self.signer_client.create_market_order_limited_slippage(
-                market_index=market_id,
-                client_order_index=self._get_next_client_order_index(),
-                base_amount=base_amount,
-                max_slippage=max_slippage,
-                is_ask=is_ask,
-                reduce_only=reduce_only,
-                api_key_index=CONFIG.LIGHTER_API_KEY_INDEX,
-            )
+            logger.info(f"   Self-trade behavior mode: {self_trade_behavior_mode}")
+            logger.info(f"   Self-trade equality mode: {self_trade_equality_mode}")
+
+            create_order = getattr(self.signer_client, "create_order", None)
+            create_order_params = inspect.signature(create_order).parameters if create_order else {}
+            supports_self_trade = "self_trade_behavior_mode" in create_order_params
+
+            if supports_self_trade:
+                ideal_price = await self.signer_client.get_best_price(market_id, is_ask)
+                acceptable_execution_price = round(
+                    ideal_price * (1 + max_slippage * (-1 if is_ask else 1))
+                )
+                created, api_resp, err = await self.signer_client.create_order(
+                    market_index=market_id,
+                    client_order_index=self._get_next_client_order_index(),
+                    base_amount=base_amount,
+                    price=acceptable_execution_price,
+                    is_ask=is_ask,
+                    order_type=self.signer_client.ORDER_TYPE_MARKET,
+                    time_in_force=self.signer_client.ORDER_TIME_IN_FORCE_IMMEDIATE_OR_CANCEL,
+                    reduce_only=reduce_only,
+                    order_expiry=self.signer_client.DEFAULT_IOC_EXPIRY,
+                    self_trade_behavior_mode=self_trade_behavior_mode,
+                    self_trade_equality_mode=self_trade_equality_mode,
+                    api_key_index=CONFIG.LIGHTER_API_KEY_INDEX,
+                )
+            else:
+                logger.warning("Installed Lighter SDK does not expose self-trade order fields")
+                created, api_resp, err = await self.signer_client.create_market_order_limited_slippage(
+                    market_index=market_id,
+                    client_order_index=self._get_next_client_order_index(),
+                    base_amount=base_amount,
+                    max_slippage=max_slippage,
+                    is_ask=is_ask,
+                    reduce_only=reduce_only,
+                    api_key_index=CONFIG.LIGHTER_API_KEY_INDEX,
+                )
 
             tx = (created, api_resp, err)
             
