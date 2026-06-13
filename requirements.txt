@@ -67,7 +67,7 @@ jsoncodable==0.1.7
 jsonschema==4.20.0
 jsonschema-specifications==2023.12.1
 kw3==0.0.24
-lighter-sdk @ git+https://github.com/elliottech/lighter-python.git@c58758b6e9b062fdb2b16a9e27a8deb9fe5fb165
+lighter-sdk==1.1.1
 loguru==0.7.2
 lru-dict==1.2.0
 lxml==5.2.2
