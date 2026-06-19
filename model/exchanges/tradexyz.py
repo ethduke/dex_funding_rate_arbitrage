@@ -6,4 +6,5 @@ class TradeXYZExchange(HyperliquidExchange):
 
     exchange_name = "TradeXYZ"
     dex = "xyz"
+    perp_dexs = ("", "xyz")
     symbol_prefix = "xyz:"

@@ -19,6 +19,7 @@ MARKET_PRICE_TTL_SECONDS = 5
 class HyperliquidExchange(BaseExchange):
     exchange_name = "Hyperliquid"
     dex = ""
+    perp_dexs = ("",)
     symbol_prefix = ""
 
     def __init__(self):
@@ -38,8 +39,13 @@ class HyperliquidExchange(BaseExchange):
         self.account = eth_account.Account.from_key(private_key)
         self.address = CONFIG.get("HYPERLIQUID_ADDRESS") or self.account.address
         
-        self.info = Info(self.base_url, skip_ws=False)
-        self.exchange = Exchange(self.account, self.base_url, account_address=self.address)
+        self.info = Info(self.base_url, skip_ws=False, perp_dexs=list(self.perp_dexs))
+        self.exchange = Exchange(
+            self.account,
+            self.base_url,
+            account_address=self.address,
+            perp_dexs=list(self.perp_dexs),
+        )
         self._meta_cache = None
         self._meta_cache_ts = 0.0
         self._all_mids_cache = None
