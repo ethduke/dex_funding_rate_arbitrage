@@ -46,10 +46,10 @@ class HyperliquidExchange(BaseExchange):
             account_address=self.address,
             perp_dexs=list(self.perp_dexs),
         )
-        self._meta_cache = None
-        self._meta_cache_ts = 0.0
-        self._all_mids_cache = None
-        self._all_mids_cache_ts = 0.0
+        self._meta_cache = {}
+        self._meta_cache_ts = {}
+        self._all_mids_cache = {}
+        self._all_mids_cache_ts = {}
 
     @staticmethod
     def _cache_expired(timestamp: float, ttl_seconds: int) -> bool:
@@ -57,26 +57,31 @@ class HyperliquidExchange(BaseExchange):
 
     def refresh_market_metadata(self) -> None:
         """Clear cached market metadata and prices so the next call refreshes."""
-        self._meta_cache = None
-        self._meta_cache_ts = 0.0
-        self._all_mids_cache = None
-        self._all_mids_cache_ts = 0.0
+        self._meta_cache = {}
+        self._meta_cache_ts = {}
+        self._all_mids_cache = {}
+        self._all_mids_cache_ts = {}
 
-    def _get_perp_meta(self, force: bool = False) -> Dict:
-        if force or self._meta_cache is None or self._cache_expired(
-            self._meta_cache_ts, MARKET_METADATA_TTL_SECONDS
-        ):
-            self._meta_cache = self.info.meta()
-            self._meta_cache_ts = time.time()
-        return self._meta_cache
+    def _cache_dex(self, dex: Optional[str] = None) -> str:
+        return self.dex if dex is None else dex
 
-    def _get_all_mids(self, force: bool = False) -> Dict:
-        if force or self._all_mids_cache is None or self._cache_expired(
-            self._all_mids_cache_ts, MARKET_PRICE_TTL_SECONDS
+    def _get_perp_meta(self, force: bool = False, dex: Optional[str] = None) -> Dict:
+        selected_dex = self._cache_dex(dex)
+        if force or selected_dex not in self._meta_cache or self._cache_expired(
+            self._meta_cache_ts.get(selected_dex, 0.0), MARKET_METADATA_TTL_SECONDS
         ):
-            self._all_mids_cache = self.info.all_mids()
-            self._all_mids_cache_ts = time.time()
-        return self._all_mids_cache
+            self._meta_cache[selected_dex] = self.info.meta(dex=selected_dex)
+            self._meta_cache_ts[selected_dex] = time.time()
+        return self._meta_cache[selected_dex]
+
+    def _get_all_mids(self, force: bool = False, dex: Optional[str] = None) -> Dict:
+        selected_dex = self._cache_dex(dex)
+        if force or selected_dex not in self._all_mids_cache or self._cache_expired(
+            self._all_mids_cache_ts.get(selected_dex, 0.0), MARKET_PRICE_TTL_SECONDS
+        ):
+            self._all_mids_cache[selected_dex] = self.info.all_mids(dex=selected_dex)
+            self._all_mids_cache_ts[selected_dex] = time.time()
+        return self._all_mids_cache[selected_dex]
             
     def get_funding_rates(self) -> Dict:
         """Get predicted funding rates from the Hyperliquid API."""
@@ -153,8 +158,8 @@ class HyperliquidExchange(BaseExchange):
         Returns a dict with price and metadata or empty dict if not found.
         """
         try:
-            all_prices = self._get_all_mids()
-            meta_data = self._get_perp_meta()
+            all_prices = self._get_all_mids(dex=self.dex)
+            meta_data = self._get_perp_meta(dex=self.dex)
             price = all_prices.get(asset)
             if price is None:
                 return {}
@@ -176,7 +181,7 @@ class HyperliquidExchange(BaseExchange):
     
     def get_price_from_api(self, asset: str, usd_amount: float) -> float:
         try:
-            all_prices = self._get_all_mids()
+            all_prices = self._get_all_mids(dex=self.dex)
             price = float(all_prices.get(asset))
             # Convert USD amount to token amount
             token_amount = usd_amount / price
@@ -340,7 +345,7 @@ class HyperliquidExchange(BaseExchange):
     def get_sz_decimals(self, asset: str) -> int:
         """Get the size decimals for an asset from the universe metadata."""
         try:
-            data = self._get_perp_meta()
+            data = self._get_perp_meta(dex=self.dex)
             
             # Find the asset in the universe
             for asset_meta in data.get("universe", []):

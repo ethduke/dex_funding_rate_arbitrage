@@ -16,49 +16,67 @@ from model.exchanges.lighter import LighterExchange
 
 class FakeHyperliquidInfo:
     def __init__(self):
-        self.meta_calls = 0
-        self.all_mids_calls = 0
+        self.meta_calls = {}
+        self.all_mids_calls = {}
 
-    def meta(self):
-        self.meta_calls += 1
-        return {"universe": [{"name": "BTC", "szDecimals": 5}]}
+    def meta(self, dex=""):
+        self.meta_calls[dex] = self.meta_calls.get(dex, 0) + 1
+        name = "xyz:TSLA" if dex == "xyz" else "BTC"
+        return {"universe": [{"name": name, "szDecimals": 5}]}
 
-    def all_mids(self):
-        self.all_mids_calls += 1
-        return {"BTC": "100000"}
+    def all_mids(self, dex=""):
+        self.all_mids_calls[dex] = self.all_mids_calls.get(dex, 0) + 1
+        return {"xyz:TSLA": "400"} if dex == "xyz" else {"BTC": "100000"}
 
 
 class MarketMetadataCacheTests(unittest.TestCase):
     def test_hyperliquid_reuses_cached_meta_and_prices(self):
         exchange = HyperliquidExchange.__new__(HyperliquidExchange)
+        exchange.dex = ""
         exchange.info = FakeHyperliquidInfo()
-        exchange._meta_cache = None
-        exchange._meta_cache_ts = 0.0
-        exchange._all_mids_cache = None
-        exchange._all_mids_cache_ts = 0.0
+        exchange._meta_cache = {}
+        exchange._meta_cache_ts = {}
+        exchange._all_mids_cache = {}
+        exchange._all_mids_cache_ts = {}
 
         self.assertEqual(exchange.get_sz_decimals("BTC"), 5)
         self.assertEqual(exchange.get_sz_decimals("BTC"), 5)
-        self.assertEqual(exchange.info.meta_calls, 1)
+        self.assertEqual(exchange.info.meta_calls[""], 1)
 
         self.assertEqual(exchange.get_price_from_api("BTC", 200000), 2.0)
         self.assertEqual(exchange.get_price_from_api("BTC", 100000), 1.0)
-        self.assertEqual(exchange.info.all_mids_calls, 1)
+        self.assertEqual(exchange.info.all_mids_calls[""], 1)
+
+    def test_hyperliquid_caches_metadata_per_dex(self):
+        exchange = HyperliquidExchange.__new__(HyperliquidExchange)
+        exchange.dex = ""
+        exchange.info = FakeHyperliquidInfo()
+        exchange._meta_cache = {}
+        exchange._meta_cache_ts = {}
+        exchange._all_mids_cache = {}
+        exchange._all_mids_cache_ts = {}
+
+        self.assertEqual(exchange._get_perp_meta(dex="")["universe"][0]["name"], "BTC")
+        self.assertEqual(exchange._get_perp_meta(dex="xyz")["universe"][0]["name"], "xyz:TSLA")
+        self.assertEqual(exchange._get_perp_meta(dex="xyz")["universe"][0]["name"], "xyz:TSLA")
+
+        self.assertEqual(exchange.info.meta_calls[""], 1)
+        self.assertEqual(exchange.info.meta_calls["xyz"], 1)
 
     def test_hyperliquid_refresh_clears_cached_metadata(self):
         exchange = HyperliquidExchange.__new__(HyperliquidExchange)
         exchange.info = FakeHyperliquidInfo()
-        exchange._meta_cache = {"universe": []}
-        exchange._meta_cache_ts = time.time()
-        exchange._all_mids_cache = {"BTC": "1"}
-        exchange._all_mids_cache_ts = time.time()
+        exchange._meta_cache = {"": {"universe": []}}
+        exchange._meta_cache_ts = {"": time.time()}
+        exchange._all_mids_cache = {"": {"BTC": "1"}}
+        exchange._all_mids_cache_ts = {"": time.time()}
 
         exchange.refresh_market_metadata()
 
-        self.assertIsNone(exchange._meta_cache)
-        self.assertEqual(exchange._meta_cache_ts, 0.0)
-        self.assertIsNone(exchange._all_mids_cache)
-        self.assertEqual(exchange._all_mids_cache_ts, 0.0)
+        self.assertEqual(exchange._meta_cache, {})
+        self.assertEqual(exchange._meta_cache_ts, {})
+        self.assertEqual(exchange._all_mids_cache, {})
+        self.assertEqual(exchange._all_mids_cache_ts, {})
 
     def test_lighter_refreshes_expired_market_mapping(self):
         exchange = LighterExchange.__new__(LighterExchange)
