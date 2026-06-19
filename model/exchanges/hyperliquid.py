@@ -17,6 +17,10 @@ MARKET_METADATA_TTL_SECONDS = 15 * 60
 MARKET_PRICE_TTL_SECONDS = 5
 
 class HyperliquidExchange(BaseExchange):
+    exchange_name = "Hyperliquid"
+    dex = ""
+    symbol_prefix = ""
+
     def __init__(self):
         """Initialize Hyperliquid client using the official SDK."""
 
@@ -120,7 +124,7 @@ class HyperliquidExchange(BaseExchange):
         size = to_float(raw_position.get("szi"))
         normalized = Position(
             asset=asset,
-            exchange="Hyperliquid",
+            exchange=self.exchange_name,
             symbol=asset,
             size=size,
             side="long" if size > 0 else ("short" if size < 0 else None),
@@ -198,7 +202,7 @@ class HyperliquidExchange(BaseExchange):
             else:
                 available = to_float(cms.get("accountValue")) if cms else 0.0
             return BalanceSnapshot(
-                exchange="Hyperliquid",
+                exchange=self.exchange_name,
                 available_usd=available,
                 total_usd=to_float(cms.get("accountValue")) if cms else 0.0,
                 account_id=self.address,
@@ -206,7 +210,7 @@ class HyperliquidExchange(BaseExchange):
                 raw=us if isinstance(us, dict) else {},
             )
         except Exception:
-            return BalanceSnapshot(exchange="Hyperliquid", available_usd=0.0)
+            return BalanceSnapshot(exchange=self.exchange_name, available_usd=0.0)
 
     def get_min_notional_usd(self, asset: str) -> float:
         # Conservative default: $1
@@ -234,7 +238,7 @@ class HyperliquidExchange(BaseExchange):
             
             if size is None:
                 return OrderResult(
-                    exchange="Hyperliquid",
+                    exchange=self.exchange_name,
                     success=False,
                     asset=symbol,
                     side=side,
@@ -250,7 +254,7 @@ class HyperliquidExchange(BaseExchange):
                 # If size becomes 0 after rounding, return error
                 if size == 0:
                     return OrderResult(
-                        exchange="Hyperliquid",
+                        exchange=self.exchange_name,
                         success=False,
                         asset=symbol,
                         side=side,
@@ -275,7 +279,7 @@ class HyperliquidExchange(BaseExchange):
         except Exception as e:
             logger.error(f"Error placing market order: {e}")
             return OrderResult(
-                exchange="Hyperliquid",
+                exchange=self.exchange_name,
                 success=False,
                 asset=symbol,
                 side=side,
@@ -296,7 +300,7 @@ class HyperliquidExchange(BaseExchange):
         except Exception as e:
             logger.error(f"Error closing position: {e}")
             return OrderResult(
-                exchange="Hyperliquid",
+                exchange=self.exchange_name,
                 success=False,
                 asset=symbol,
                 side="CLOSE",
@@ -314,7 +318,7 @@ class HyperliquidExchange(BaseExchange):
         raw = raw_result if isinstance(raw_result, dict) else {"response": raw_result}
         success = raw.get("status") != "error" and "error" not in raw
         normalized = OrderResult(
-            exchange="Hyperliquid",
+            exchange=self.exchange_name,
             success=success,
             asset=asset,
             side=side,
@@ -348,7 +352,7 @@ class HyperliquidExchange(BaseExchange):
         token_amount = self.usd_to_token_size(asset, usd_amount)
         if token_amount <= 0:
             return OrderResult(
-                exchange="Hyperliquid",
+                exchange=self.exchange_name,
                 success=False,
                 asset=asset,
                 side="BUY",
@@ -367,7 +371,7 @@ class HyperliquidExchange(BaseExchange):
         token_amount = self.usd_to_token_size(asset, usd_amount)
         if token_amount <= 0:
             return OrderResult(
-                exchange="Hyperliquid",
+                exchange=self.exchange_name,
                 success=False,
                 asset=asset,
                 side="SELL",
@@ -407,7 +411,7 @@ class HyperliquidExchange(BaseExchange):
                     data = venue_data[1]
                     result[asset] = FundingRate(
                         asset=asset,
-                        exchange="Hyperliquid",
+                        exchange=self.exchange_name,
                         rate=to_float(data.get("fundingRate")),
                         next_funding_time=data.get("nextFundingTime", 0),
                         funding_interval_hours=to_float(data.get("fundingIntervalHours"), None),
