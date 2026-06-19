@@ -39,6 +39,54 @@ class TradeXYZExchangeTests(unittest.TestCase):
 
         self.assertEqual(exchange.process_funding_rates({"error": "boom"}), {})
 
+    def test_positions_use_xyz_user_state(self):
+        class FakeInfo:
+            def __init__(self):
+                self.calls = []
+
+            def user_state(self, address, dex=""):
+                self.calls.append((address, dex))
+                return {
+                    "assetPositions": [
+                        {"position": {"coin": "xyz:TSLA", "szi": "1.5", "entryPx": "400"}}
+                    ]
+                }
+
+        exchange = TradeXYZExchange.__new__(TradeXYZExchange)
+        exchange.info = FakeInfo()
+        exchange.address = "0xabc"
+
+        positions = exchange.get_positions()
+
+        self.assertEqual(exchange.info.calls, [("0xabc", "xyz")])
+        self.assertEqual(positions[0]["exchange"], "TradeXYZ")
+        self.assertEqual(positions[0]["asset"], "xyz:TSLA")
+        self.assertEqual(positions[0]["side"], "long")
+
+    def test_balance_uses_xyz_user_state(self):
+        class FakeInfo:
+            def __init__(self):
+                self.calls = []
+
+            def user_state(self, address, dex=""):
+                self.calls.append((address, dex))
+                return {
+                    "withdrawable": "12.5",
+                    "crossMarginSummary": {"accountValue": "15.0"},
+                    "assetPositions": [],
+                }
+
+        exchange = TradeXYZExchange.__new__(TradeXYZExchange)
+        exchange.info = FakeInfo()
+        exchange.address = "0xabc"
+
+        balance = exchange.get_balance_snapshot()
+
+        self.assertEqual(exchange.info.calls, [("0xabc", "xyz")])
+        self.assertEqual(balance.exchange, "TradeXYZ")
+        self.assertEqual(balance.available_usd, 12.5)
+        self.assertEqual(balance.total_usd, 15.0)
+
 
 if __name__ == "__main__":
     unittest.main()

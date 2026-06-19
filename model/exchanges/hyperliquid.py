@@ -121,7 +121,7 @@ class HyperliquidExchange(BaseExchange):
     def get_positions(self) -> List[Dict]:
         """Get current positions."""
         try:
-            user_state = self.info.user_state(self.address)
+            user_state = self.info.user_state(self.address, dex=self.dex)
             positions = user_state.get("assetPositions", [])
             return [self._normalize_position(position) for position in positions]
         except Exception as e:
@@ -205,7 +205,7 @@ class HyperliquidExchange(BaseExchange):
     def get_balance_snapshot(self, asset: Optional[str] = None) -> BalanceSnapshot:
         """Return normalized Hyperliquid margin availability."""
         try:
-            us = self.info.user_state(self.address)
+            us = self.info.user_state(self.address, dex=self.dex)
             cms = us.get("crossMarginSummary", {}) if isinstance(us, dict) else {}
             withdrawable = to_float(us.get("withdrawable")) if isinstance(us, dict) else 0.0
             if withdrawable > 0:
