@@ -38,8 +38,9 @@ class TradeXYZExchange(HyperliquidExchange):
             if not symbol:
                 continue
 
-            result[symbol] = FundingRate(
-                asset=symbol,
+            asset = self.normalize_asset_symbol(symbol)
+            result[asset] = FundingRate(
+                asset=asset,
                 exchange=self.exchange_name,
                 rate=to_float(context.get("funding")),
                 mark_price=to_float(context.get("markPx"), None),

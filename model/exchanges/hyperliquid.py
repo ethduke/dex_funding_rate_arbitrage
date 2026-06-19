@@ -62,6 +62,12 @@ class HyperliquidExchange(BaseExchange):
         self._all_mids_cache = {}
         self._all_mids_cache_ts = {}
 
+    def normalize_asset_symbol(self, symbol: str) -> str:
+        """Return the engine-facing asset name for an exchange symbol."""
+        if self.symbol_prefix and symbol.startswith(self.symbol_prefix):
+            return symbol[len(self.symbol_prefix):]
+        return symbol
+
     def _cache_dex(self, dex: Optional[str] = None) -> str:
         return self.dex if dex is None else dex
 
@@ -131,12 +137,13 @@ class HyperliquidExchange(BaseExchange):
     def _normalize_position(self, position: Dict[str, Any]) -> Dict[str, Any]:
         """Flatten Hyperliquid SDK positions into the shared position shape."""
         raw_position = position.get("position", position)
-        asset = raw_position.get("coin", "")
+        symbol = raw_position.get("coin", "")
+        asset = self.normalize_asset_symbol(symbol)
         size = to_float(raw_position.get("szi"))
         normalized = Position(
             asset=asset,
             exchange=self.exchange_name,
-            symbol=asset,
+            symbol=symbol or asset,
             size=size,
             side="long" if size > 0 else ("short" if size < 0 else None),
             entry_price=to_float(raw_position.get("entryPx"), None),
@@ -146,7 +153,7 @@ class HyperliquidExchange(BaseExchange):
         compatible = dict(position)
         compatible.update(raw_position)
         compatible.update(normalized)
-        compatible["coin"] = asset
+        compatible["coin"] = symbol
         compatible["szi"] = str(size)
         if normalized.get("entry_price") is not None:
             compatible["entryPx"] = str(normalized["entry_price"])
@@ -158,15 +165,16 @@ class HyperliquidExchange(BaseExchange):
         Returns a dict with price and metadata or empty dict if not found.
         """
         try:
+            symbol = self.format_symbol(asset)
             all_prices = self._get_all_mids(dex=self.dex)
             meta_data = self._get_perp_meta(dex=self.dex)
-            price = all_prices.get(asset)
+            price = all_prices.get(symbol)
             if price is None:
                 return {}
 
             asset_info = {}
             for item in meta_data.get("universe", []):
-                if item.get("name") == asset:
+                if item.get("name") == symbol:
                     asset_info = item
                     break
 
@@ -181,13 +189,14 @@ class HyperliquidExchange(BaseExchange):
     
     def get_price_from_api(self, asset: str, usd_amount: float) -> float:
         try:
+            symbol = self.format_symbol(asset)
             all_prices = self._get_all_mids(dex=self.dex)
-            price = float(all_prices.get(asset))
+            price = float(all_prices.get(symbol))
             # Convert USD amount to token amount
             token_amount = usd_amount / price
 
             # Get proper decimal precision for this asset
-            sz_decimals = self.get_sz_decimals(asset)
+            sz_decimals = self.get_sz_decimals(symbol)
 
             # Round to the appropriate decimal places to avoid precision errors
             token_amount = math.floor(token_amount * (10 ** sz_decimals)) / (10 ** sz_decimals)
@@ -241,6 +250,7 @@ class HyperliquidExchange(BaseExchange):
     ) -> Dict:
         """Place a market order using the exact function signature from the example."""
         try:
+            symbol = self.format_symbol(symbol)
             # Convert side to is_buy
             is_buy = side.lower() == "bid"
             
@@ -301,6 +311,7 @@ class HyperliquidExchange(BaseExchange):
     def close_position(self, symbol: str) -> Dict:
         """Close position for a specific coin."""
         try:
+            symbol = self.format_symbol(symbol)
             # Use the exact function signature from the example
             order_result = self.exchange.market_close(symbol)
             return self._normalize_order_result(
@@ -345,11 +356,12 @@ class HyperliquidExchange(BaseExchange):
     def get_sz_decimals(self, asset: str) -> int:
         """Get the size decimals for an asset from the universe metadata."""
         try:
+            symbol = self.format_symbol(asset)
             data = self._get_perp_meta(dex=self.dex)
             
             # Find the asset in the universe
             for asset_meta in data.get("universe", []):
-                if asset_meta.get("name") == asset:
+                if asset_meta.get("name") == symbol:
                     return asset_meta.get("szDecimals", 2)
             
             return 2  # Default to 2 decimals if asset not found
@@ -398,7 +410,9 @@ class HyperliquidExchange(BaseExchange):
 
     def format_symbol(self, asset: str) -> str:
         """Format asset name to exchange-specific symbol format."""
-        return asset  # Hyperliquid doesn't need special formatting
+        if self.symbol_prefix and not asset.startswith(self.symbol_prefix):
+            return f"{self.symbol_prefix}{asset}"
+        return asset
 
     def subscribe_to_funding_updates(self, callback: Callable) -> Any:
         """Subscribe to funding rate updates."""
