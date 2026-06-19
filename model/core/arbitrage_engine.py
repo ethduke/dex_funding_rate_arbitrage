@@ -8,6 +8,7 @@ from utils.logger import setup_logger
 from model.exchanges.backpack import BackpackExchange
 from model.exchanges.hyperliquid import HyperliquidExchange
 from model.exchanges.lighter import LighterExchange
+from model.exchanges.tradexyz import TradeXYZExchange
 from model.exchanges.base import BaseExchange
 from utils.config import CONFIG
 
@@ -50,7 +51,7 @@ class FundingArbitrageEngine:
         # Initialize exchange clients
         logger.info("Initializing exchange clients...")
         if exchanges is None:
-            exchanges = [BackpackExchange, HyperliquidExchange, LighterExchange]
+            exchanges = [BackpackExchange, HyperliquidExchange, LighterExchange, TradeXYZExchange]
             
         self.exchanges = {}
         for exchange_class in exchanges:

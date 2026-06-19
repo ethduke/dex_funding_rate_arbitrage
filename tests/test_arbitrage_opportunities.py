@@ -1,5 +1,6 @@
 import os
 import unittest
+from unittest.mock import patch
 
 
 os.environ.setdefault("BACKPACK_API_SECRET", "test-backpack-secret")
@@ -9,6 +10,7 @@ os.environ.setdefault("HYPERLIQUID_ADDRESS", "test-hyperliquid-address")
 os.environ.setdefault("LIGHTER_PRIVATE_KEY", "test-lighter-private-key")
 
 from model.core.arbitrage_engine import FundingArbitrageEngine
+from model.core import arbitrage_engine as arbitrage_engine_module
 
 
 class ArbitrageOpportunityTests(unittest.TestCase):
@@ -67,6 +69,39 @@ class ArbitrageOpportunityTests(unittest.TestCase):
         )
 
         self.assertEqual(opportunities, [])
+
+    def test_default_exchange_set_includes_tradexyz(self):
+        class BackpackExchange:
+            def __init__(self, use_ws=True):
+                self.use_ws = use_ws
+
+        class HyperliquidExchange:
+            pass
+
+        class LighterExchange:
+            def __init__(self, use_ws=True):
+                self.use_ws = use_ws
+
+        class TradeXYZExchange:
+            pass
+
+        with patch.object(arbitrage_engine_module, "BackpackExchange", BackpackExchange), \
+             patch.object(arbitrage_engine_module, "HyperliquidExchange", HyperliquidExchange), \
+             patch.object(arbitrage_engine_module, "LighterExchange", LighterExchange), \
+             patch.object(arbitrage_engine_module, "TradeXYZExchange", TradeXYZExchange):
+            engine = FundingArbitrageEngine(
+                min_rate_difference=0.0001,
+                position_size=5,
+                min_hold_time_seconds=0,
+                magnitude_reduction_threshold=0.5,
+                check_interval_minutes=1,
+                use_ws=False,
+            )
+
+        self.assertEqual(
+            set(engine.exchanges),
+            {"Backpack", "Hyperliquid", "Lighter", "TradeXYZ"},
+        )
 
 
 if __name__ == "__main__":
