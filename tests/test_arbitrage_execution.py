@@ -28,6 +28,10 @@ class FakeSyncExchange:
         self.calls.append(("close_position", asset))
         return {"status": "ok", "success": True}
 
+    def get_market_data(self, asset):
+        self.calls.append(("get_market_data", asset))
+        return {"price": 123.45}
+
 
 class FakeAsyncExchange:
     def __init__(self):
@@ -104,6 +108,42 @@ class ArbitrageExecutionTests(unittest.TestCase):
             [("open_long", "TSLA", 5), ("close_position", "TSLA")],
         )
         self.assertEqual(lighter.calls, [("open_short", "TSLA", 5)])
+
+    def test_cleanup_positions_closes_tradexyz_successful_leg(self):
+        engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)
+        tradexyz = FakeSyncExchange()
+        engine.exchanges = {"TradeXYZ": tradexyz}
+
+        engine._cleanup_positions(
+            asset="TSLA",
+            long_exchange="TradeXYZ",
+            short_exchange="Lighter",
+            long_success=True,
+            short_success=False,
+        )
+
+        self.assertEqual(tradexyz.calls, [("close_position", "TSLA")])
+
+    def test_close_exchange_position_supports_tradexyz(self):
+        engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)
+        tradexyz = FakeSyncExchange()
+        stats = {"exit_prices": {"TradeXYZ": None}}
+
+        result = asyncio.run(
+            engine._close_exchange_position(
+                exchange_name="TradeXYZ",
+                exchange_obj=tradexyz,
+                asset_name="TSLA",
+                stats_dict=stats,
+            )
+        )
+
+        self.assertTrue(result)
+        self.assertEqual(
+            tradexyz.calls,
+            [("close_position", "TSLA"), ("get_market_data", "TSLA")],
+        )
+        self.assertEqual(stats["exit_prices"]["TradeXYZ"], 123.45)
 
 
 if __name__ == "__main__":

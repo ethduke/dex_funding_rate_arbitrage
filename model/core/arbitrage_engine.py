@@ -984,6 +984,9 @@ class FundingArbitrageEngine:
                 elif long_exchange == "Hyperliquid":
                     logger.debug(f"Closing any LONG position on Hyperliquid for {asset}")
                     hyperliquid.close_position(asset)
+                elif long_exchange == "TradeXYZ":
+                    logger.debug(f"Closing any LONG position on TradeXYZ for {asset}")
+                    self.exchanges.get("TradeXYZ").close_position(asset)
                     
                 if short_exchange == "Backpack":
                     logger.debug(f"Closing any SHORT position on Backpack for {asset}")
@@ -991,6 +994,9 @@ class FundingArbitrageEngine:
                 elif short_exchange == "Hyperliquid":
                     logger.debug(f"Closing any SHORT position on Hyperliquid for {asset}")
                     hyperliquid.close_position(asset)
+                elif short_exchange == "TradeXYZ":
+                    logger.debug(f"Closing any SHORT position on TradeXYZ for {asset}")
+                    self.exchanges.get("TradeXYZ").close_position(asset)
             except Exception as close_error:
                 logger.error(f"Error closing positions after failure: {str(close_error)}", exc_info=True)
             return None
@@ -1002,6 +1008,7 @@ class FundingArbitrageEngine:
         try:
             backpack = self.exchanges.get("Backpack")
             hyperliquid = self.exchanges.get("Hyperliquid")
+            tradexyz = self.exchanges.get("TradeXYZ")
             
             # Close long position if it was successfully opened
             if long_success:
@@ -1011,6 +1018,9 @@ class FundingArbitrageEngine:
                 elif long_exchange == "Hyperliquid":
                     logger.info(f"Closing LONG position on Hyperliquid for {asset}")
                     hyperliquid.close_position(asset)
+                elif long_exchange == "TradeXYZ":
+                    logger.info(f"Closing LONG position on TradeXYZ for {asset}")
+                    tradexyz.close_position(asset)
             
             # Close short position if it was successfully opened
             if short_success:
@@ -1020,6 +1030,9 @@ class FundingArbitrageEngine:
                 elif short_exchange == "Hyperliquid":
                     logger.info(f"Closing SHORT position on Hyperliquid for {asset}")
                     hyperliquid.close_position(asset)
+                elif short_exchange == "TradeXYZ":
+                    logger.info(f"Closing SHORT position on TradeXYZ for {asset}")
+                    tradexyz.close_position(asset)
         except Exception as e:
             logger.error(f"Error cleaning up positions: {str(e)}", exc_info=True)
     
@@ -1489,6 +1502,7 @@ class FundingArbitrageEngine:
             backpack = self.exchanges.get("Backpack")
             hyperliquid = self.exchanges.get("Hyperliquid")
             lighter = self.exchanges.get("Lighter")
+            tradexyz = self.exchanges.get("TradeXYZ")
             
             # Get position details
             long_exchange = position.get('long_exchange')
@@ -1497,13 +1511,13 @@ class FundingArbitrageEngine:
             # Close positions using the shared helper method
             long_close_success = await self._close_exchange_position(
                 long_exchange,
-                backpack if long_exchange == "Backpack" else (hyperliquid if long_exchange == "Hyperliquid" else lighter),
+                self._get_exchange_obj(long_exchange),
                 asset
             )
             
             short_close_success = await self._close_exchange_position(
                 short_exchange,
-                backpack if short_exchange == "Backpack" else (hyperliquid if short_exchange == "Hyperliquid" else lighter),
+                self._get_exchange_obj(short_exchange),
                 asset
             )
             
@@ -1518,40 +1532,54 @@ class FundingArbitrageEngine:
                 lt_position_closed = True
                 
                 # Check Backpack positions
-                bp_positions = backpack.get_positions()
-                if isinstance(bp_positions, list):
-                    for pos in bp_positions:
-                        if pos.get("symbol", "").startswith(asset) and float(pos.get("positionSize", "0")) != 0:
-                            bp_position_closed = False
-                            logger.warning(f"Backpack position still open: {pos}")
-                            # Try one more time to close
-                            if pos.get("symbol") == f"{asset}_USDC_PERP":
-                                logger.info("Making one final attempt to close Backpack position")
-                                backpack.close_position(pos.get("symbol"), float(pos.get("positionSize", "0")))
+                if backpack:
+                    bp_positions = backpack.get_positions()
+                    if isinstance(bp_positions, list):
+                        for pos in bp_positions:
+                            if pos.get("symbol", "").startswith(asset) and float(pos.get("positionSize", "0")) != 0:
+                                bp_position_closed = False
+                                logger.warning(f"Backpack position still open: {pos}")
+                                # Try one more time to close
+                                if pos.get("symbol") == f"{asset}_USDC_PERP":
+                                    logger.info("Making one final attempt to close Backpack position")
+                                    backpack.close_position(pos.get("symbol"), float(pos.get("positionSize", "0")))
                 
                 # Check Hyperliquid positions
-                hl_positions = hyperliquid.get_positions()
-                if isinstance(hl_positions, list):
-                    for pos in hl_positions:
-                        if pos.get("coin") == asset and float(pos.get("szi", "0")) != 0:
-                            hl_position_closed = False
-                            logger.warning(f"Hyperliquid position still open: {pos}")
-                            # Try one more time to close
-                            logger.info("Making one final attempt to close Hyperliquid position")
-                            hyperliquid.close_position(asset)
+                if hyperliquid:
+                    hl_positions = hyperliquid.get_positions()
+                    if isinstance(hl_positions, list):
+                        for pos in hl_positions:
+                            if pos.get("coin") == asset and float(pos.get("szi", "0")) != 0:
+                                hl_position_closed = False
+                                logger.warning(f"Hyperliquid position still open: {pos}")
+                                # Try one more time to close
+                                logger.info("Making one final attempt to close Hyperliquid position")
+                                hyperliquid.close_position(asset)
                 
                 # Check Lighter positions
-                lt_positions = await lighter.get_positions()
-                if isinstance(lt_positions, list):
-                    for pos in lt_positions:
-                        if pos.get("symbol") == asset and float(pos.get("size", "0")) != 0:
-                            lt_position_closed = False
-                            logger.warning(f"Lighter position still open: {pos}")
-                            # Try one more time to close
-                            logger.info("Making one final attempt to close Lighter position")
-                            await lighter.close_position(asset)
+                if lighter:
+                    lt_positions = await lighter.get_positions()
+                    if isinstance(lt_positions, list):
+                        for pos in lt_positions:
+                            if pos.get("symbol") == asset and float(pos.get("size", "0")) != 0:
+                                lt_position_closed = False
+                                logger.warning(f"Lighter position still open: {pos}")
+                                # Try one more time to close
+                                logger.info("Making one final attempt to close Lighter position")
+                                await lighter.close_position(asset)
+
+                tx_position_closed = True
+                if tradexyz:
+                    tx_positions = tradexyz.get_positions()
+                    if isinstance(tx_positions, list):
+                        for pos in tx_positions:
+                            if pos.get("asset") == asset and float(pos.get("size", "0")) != 0:
+                                tx_position_closed = False
+                                logger.warning(f"TradeXYZ position still open: {pos}")
+                                logger.info("Making one final attempt to close TradeXYZ position")
+                                tradexyz.close_position(asset)
                 
-                if bp_position_closed and hl_position_closed and lt_position_closed:
+                if bp_position_closed and hl_position_closed and lt_position_closed and tx_position_closed:
                     logger.info("All positions successfully closed")
                 else:
                     logger.warning("Some positions may still be open")
@@ -1605,7 +1633,7 @@ class FundingArbitrageEngine:
                 
                 if exchange_name == "Backpack":
                     result = exchange_obj.close_asset_position(asset_name)
-                elif exchange_name == "Hyperliquid":
+                elif exchange_name in ["Hyperliquid", "TradeXYZ"]:
                     result = exchange_obj.close_position(asset_name)
                 elif exchange_name == "Lighter":
                     result = await exchange_obj.close_position(asset_name)
@@ -1639,7 +1667,7 @@ class FundingArbitrageEngine:
                             except Exception as e:
                                 logger.error(f"Error getting Backpack exit price: {e}")
                     
-                    elif exchange_name == "Hyperliquid":
+                    elif exchange_name in ["Hyperliquid", "TradeXYZ"]:
                         # Capture exit price if available
                         if isinstance(result, dict) and "px" in result:
                             stats_dict["exit_prices"][exchange_name] = float(result["px"])
@@ -1649,8 +1677,10 @@ class FundingArbitrageEngine:
                                 market_data = exchange_obj.get_market_data(asset_name)
                                 if isinstance(market_data, dict) and "markPx" in market_data:
                                     stats_dict["exit_prices"][exchange_name] = float(market_data["markPx"])
+                                elif isinstance(market_data, dict) and "price" in market_data:
+                                    stats_dict["exit_prices"][exchange_name] = float(market_data["price"])
                             except Exception as e:
-                                logger.error(f"Error getting Hyperliquid exit price: {e}")
+                                logger.error(f"Error getting {exchange_name} exit price: {e}")
                     
                     elif exchange_name == "Lighter":
                         # Capture exit price if available
