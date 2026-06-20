@@ -102,6 +102,27 @@ class FakeFailingAsyncExchange(FakeAsyncExchange):
         return {"status": "error", "error": "rejected"}
 
 
+class FakeNestedRejectingSyncExchange(FakeSyncExchange):
+    def open_short(self, asset, amount):
+        self.calls.append(("open_short", asset, amount))
+        return {
+            "status": "error",
+            "success": False,
+            "error": "Insufficient margin to place order",
+            "raw": {
+                "status": "ok",
+                "response": {
+                    "type": "order",
+                    "data": {
+                        "statuses": [
+                            {"error": "Insufficient margin to place order"},
+                        ],
+                    },
+                },
+            },
+        }
+
+
 class FakeFundingExchange:
     def __init__(self):
         self.calls = []
@@ -167,6 +188,33 @@ class ArbitrageExecutionTests(unittest.TestCase):
             [("open_long", "TSLA", 5), ("close_position", "TSLA")],
         )
         self.assertEqual(lighter.calls, [("open_short", "TSLA", 5)])
+
+    def test_exchange_pair_rolls_back_long_when_short_has_nested_rejection(self):
+        engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)
+        lighter = FakeLighterExecutionExchange()
+        tradexyz = FakeNestedRejectingSyncExchange()
+        engine.exchanges = {
+            "Lighter": lighter,
+            "TradeXYZ": tradexyz,
+        }
+
+        result, _, _, long_success, short_success = asyncio.run(
+            engine._execute_exchange_pair(
+                asset="DRAM",
+                long_exchange="Lighter",
+                short_exchange="TradeXYZ",
+                position_size_usd=20,
+            )
+        )
+
+        self.assertIsNone(result)
+        self.assertTrue(long_success)
+        self.assertFalse(short_success)
+        self.assertEqual(
+            lighter.calls,
+            [("open_long", "DRAM", 20), ("close_position", "DRAM")],
+        )
+        self.assertEqual(tradexyz.calls, [("open_short", "DRAM", 20)])
 
     def test_cleanup_positions_closes_tradexyz_successful_leg(self):
         engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)

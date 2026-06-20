@@ -338,20 +338,44 @@ class HyperliquidExchange(BaseExchange):
         size: Optional[float] = None,
     ) -> Dict[str, Any]:
         raw = raw_result if isinstance(raw_result, dict) else {"response": raw_result}
-        success = raw.get("status") != "error" and "error" not in raw
+        nested_error = self._extract_order_error(raw)
+        success = raw.get("status") != "error" and "error" not in raw and nested_error is None
         normalized = OrderResult(
             exchange=self.exchange_name,
             success=success,
             asset=asset,
             side=side,
             size=size,
-            error=raw.get("error") if not success else None,
-            message=raw.get("message"),
+            error=(nested_error or raw.get("error")) if not success else None,
+            message=raw.get("message") or nested_error,
             raw=raw,
         ).to_dict()
         compatible = dict(raw)
         compatible.update(normalized)
         return compatible
+
+    @staticmethod
+    def _extract_order_error(raw: Dict[str, Any]) -> Optional[str]:
+        response = raw.get("response")
+        if not isinstance(response, dict):
+            return None
+
+        data = response.get("data")
+        if not isinstance(data, dict):
+            return None
+
+        statuses = data.get("statuses")
+        if not isinstance(statuses, list):
+            return None
+
+        errors = []
+        for status in statuses:
+            if isinstance(status, dict) and status.get("error"):
+                errors.append(str(status["error"]))
+
+        if not errors:
+            return None
+        return "; ".join(errors)
     
     def get_sz_decimals(self, asset: str) -> int:
         """Get the size decimals for an asset from the universe metadata."""

@@ -149,6 +149,52 @@ class ExchangeNormalizationTests(unittest.TestCase):
         self.assertEqual(position["entry_price"], 3000.0)
         self.assertTrue(order["success"])
 
+    def test_hyperliquid_order_normalization_detects_nested_rejection(self):
+        exchange = HyperliquidExchange.__new__(HyperliquidExchange)
+
+        order = exchange._normalize_order_result(
+            {
+                "status": "ok",
+                "response": {
+                    "type": "order",
+                    "data": {
+                        "statuses": [
+                            {"error": "Insufficient margin to place order"},
+                        ],
+                    },
+                },
+            },
+            asset="xyz:DRAM",
+            side="SELL",
+            size=0.25,
+        )
+
+        self.assertFalse(order["success"])
+        self.assertEqual(order["status"], "error")
+        self.assertEqual(order["error"], "Insufficient margin to place order")
+
+    def test_hyperliquid_order_normalization_accepts_nested_fills(self):
+        exchange = HyperliquidExchange.__new__(HyperliquidExchange)
+
+        order = exchange._normalize_order_result(
+            {
+                "status": "ok",
+                "response": {
+                    "type": "order",
+                    "data": {
+                        "statuses": [
+                            {"filled": {"totalSz": "0.25", "avgPx": "80.0"}},
+                        ],
+                    },
+                },
+            },
+            asset="xyz:DRAM",
+            side="SELL",
+            size=0.25,
+        )
+
+        self.assertTrue(order["success"])
+
     def test_lighter_funding_and_trade_normalization(self):
         exchange = LighterExchange.__new__(LighterExchange)
         exchange.account_index = 7
