@@ -84,6 +84,18 @@ class FakeLighterExecutionExchange(FakeAsyncExchange):
         return {"free_collateral": "10", "total_asset_value": "10"}
 
 
+class FakeHyperliquidExecutionExchange(FakeSyncExchange):
+    address = "test-hyperliquid-address"
+
+    class Info:
+        def user_state(self, address):
+            return {"crossMarginSummary": {"withdrawable": "10", "accountValue": "10"}}
+
+    def __init__(self, available_usd=10, funding_assets=None):
+        super().__init__(available_usd=available_usd, funding_assets=funding_assets)
+        self.info = self.Info()
+
+
 class FakeFailingAsyncExchange(FakeAsyncExchange):
     async def open_short(self, asset, amount):
         self.calls.append(("open_short", asset, amount))
@@ -261,6 +273,30 @@ class ArbitrageExecutionTests(unittest.TestCase):
         self.assertEqual(result["long_exchange"], "TradeXYZ")
         self.assertEqual(result["short_exchange"], "Lighter")
         self.assertIn(("get_available_usd", "TSLA"), tradexyz.calls)
+
+    def test_execute_arbitrage_routes_requested_lighter_hyperliquid_pair_without_backpack(self):
+        engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)
+        engine.position_size = 5
+        lighter = FakeLighterExecutionExchange()
+        hyperliquid = FakeHyperliquidExecutionExchange()
+        engine.exchanges = {
+            "Lighter": lighter,
+            "Hyperliquid": hyperliquid,
+        }
+
+        result = asyncio.run(
+            engine._execute_arbitrage({
+                "asset": "TSLA",
+                "long_exchange": "Lighter",
+                "short_exchange": "Hyperliquid",
+            })
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["long_exchange"], "Lighter")
+        self.assertEqual(result["short_exchange"], "Hyperliquid")
+        self.assertIn(("open_long", "TSLA", 5), lighter.calls)
+        self.assertIn(("open_short", "TSLA", 5), hyperliquid.calls)
 
     def test_trade_pair_exact_symbol_guard_rejects_aliases(self):
         engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)

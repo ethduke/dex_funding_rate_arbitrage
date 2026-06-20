@@ -649,6 +649,21 @@ class FundingArbitrageEngine:
         short_exchange: str,
         position_size_usd: float,
     ):
+        return await self._execute_exchange_pair(
+            asset,
+            long_exchange,
+            short_exchange,
+            position_size_usd,
+        )
+
+    async def _execute_exchange_pair(
+        self,
+        asset: str,
+        long_exchange: str,
+        short_exchange: str,
+        position_size_usd: float,
+    ):
+        """Execute a two-leg trade using the requested exchange names."""
         long_obj = self._get_exchange_obj(long_exchange)
         short_obj = self._get_exchange_obj(short_exchange)
 
@@ -681,6 +696,28 @@ class FundingArbitrageEngine:
             "asset": asset,
             "size": position_size_usd,
         }, long_result, short_result, long_success, short_success
+
+    async def _verify_open_positions(self, asset: str, exchange_names: list[str]) -> None:
+        """Log best-effort position verification for exchanges that expose get_positions."""
+        for exchange_name in exchange_names:
+            exchange_obj = self._get_exchange_obj(exchange_name)
+            if exchange_obj is None or not hasattr(exchange_obj, "get_positions"):
+                continue
+
+            try:
+                positions = exchange_obj.get_positions()
+                if hasattr(positions, "__await__"):
+                    positions = await positions
+                if isinstance(positions, list):
+                    logger.debug(f"{exchange_name} positions: {len(positions)}")
+                    for pos in positions:
+                        position_symbol = pos.get("symbol") or pos.get("coin") or pos.get("asset")
+                        if isinstance(position_symbol, str) and position_symbol.startswith(asset):
+                            logger.debug(f"   {exchange_name} position: {pos}")
+                else:
+                    logger.warning(f"Unexpected {exchange_name} positions format: {positions}")
+            except Exception as e:
+                logger.error(f"Error verifying {exchange_name} positions: {e}", exc_info=True)
 
     async def _get_exchange_rate_assets(self, exchange_name: str, exchange_obj) -> set:
         if exchange_obj is None:
@@ -726,8 +763,8 @@ class FundingArbitrageEngine:
         short_exchange = opportunity['short_exchange']
         if not await self._trade_pair_has_exact_symbol(asset, long_exchange, short_exchange):
             return None
-        
-                    # Execute the trades
+
+        # Execute the trades
         try:
             backpack = self.exchanges.get("Backpack")
             hyperliquid = self.exchanges.get("Hyperliquid")
@@ -807,177 +844,16 @@ class FundingArbitrageEngine:
                 else:
                     logger.info("Lighter order placement available - will attempt orders")
             
-            long_result = None
-            short_result = None
-            long_success = False
-            short_success = False
-
-            if "TradeXYZ" in [long_exchange, short_exchange]:
-                result, long_result, short_result, long_success, short_success = await self._execute_tradexyz_pair(
-                    asset,
-                    long_exchange,
-                    short_exchange,
-                    position_size_usd,
-                )
-                if result is None:
-                    return None
-                return result
-            
-            # Open long position
-            if long_exchange == "Backpack":
-                logger.info(f"Opening LONG position on Backpack for {asset} with size ${position_size_usd}")
-                try:
-                    long_result = backpack.open_long(asset, position_size_usd)
-                    long_success = "status" not in long_result or long_result["status"] != "error"
-                    logger.debug(f"Backpack LONG result: {long_result}")
-                    if not long_success:
-                        logger.error(f"Failed to open LONG position on Backpack: {long_result.get('message', 'Unknown error')}")
-                        return None
-                except Exception as e:
-                    logger.error(f"Failed to open LONG position on Backpack: {str(e)}", exc_info=True)
-                    return None
-                
-                logger.info(f"Opening SHORT position on Hyperliquid for {asset} with size ${position_size_usd}")
-                try:
-                    short_result = hyperliquid.open_short(asset, position_size_usd)
-                    short_success = "status" not in short_result or short_result["status"] != "error"
-                    logger.debug(f"Hyperliquid SHORT result: {short_result}")
-                    if not short_success:
-                        logger.error(f"Failed to open SHORT position on Hyperliquid: {short_result.get('message', 'Unknown error')}")
-                        # Try to close the long position we just opened
-                        try:
-                            logger.debug(f"Closing LONG position on Backpack for {asset} after SHORT position failure")
-                            backpack.close_asset_position(asset)
-                        except Exception as close_e:
-                            logger.error(f"Failed to close LONG position after SHORT position failure: {str(close_e)}", exc_info=True)
-                        return None
-                except Exception as e:
-                    logger.error(f"Failed to open SHORT position on Hyperliquid: {str(e)}", exc_info=True)
-                    # Try to close the long position we just opened
-                    try:
-                        logger.debug(f"Closing LONG position on Backpack for {asset} after SHORT position failure")
-                        backpack.close_asset_position(asset)
-                    except Exception as close_e:
-                        logger.error(f"Failed to close LONG position after SHORT position failure: {str(close_e)}", exc_info=True)
-                    return None
-            elif long_exchange == "Hyperliquid":
-                logger.info(f"Opening LONG position on Hyperliquid for {asset} with size ${position_size_usd}")
-                try:
-                    long_result = hyperliquid.open_long(asset, position_size_usd)
-                    long_success = "status" not in long_result or long_result["status"] != "error"
-                    logger.debug(f"Hyperliquid LONG result: {long_result}")
-                    if not long_success:
-                        logger.error(f"Failed to open LONG position on Hyperliquid: {long_result.get('message', 'Unknown error')}")
-                        return None
-                except Exception as e:
-                    logger.error(f"Failed to open LONG position on Hyperliquid: {str(e)}", exc_info=True)
-                    return None
-                
-                logger.info(f"Opening SHORT position on Backpack for {asset} with size ${position_size_usd}")
-                try:
-                    short_result = backpack.open_short(asset, position_size_usd)
-                    short_success = "status" not in short_result or short_result["status"] != "error"
-                    logger.debug(f"Backpack SHORT result: {short_result}")
-                    if not short_success:
-                        logger.error(f"Failed to open SHORT position on Backpack: {short_result.get('message', 'Unknown error')}")
-                        # Try to close the long position we just opened
-                        try:
-                            logger.debug(f"Closing LONG position on Hyperliquid for {asset} after SHORT position failure")
-                            hyperliquid.close_position(asset)
-                        except Exception as close_e:
-                            logger.error(f"Failed to close LONG position after SHORT position failure: {str(close_e)}", exc_info=True)
-                        return None
-                except Exception as e:
-                    logger.error(f"Failed to open SHORT position on Backpack: {str(e)}", exc_info=True)
-                    # Try to close the long position we just opened
-                    try:
-                        logger.debug(f"Closing LONG position on Hyperliquid for {asset} after SHORT position failure")
-                        hyperliquid.close_position(asset)
-                    except Exception as close_e:
-                        logger.error(f"Failed to close LONG position after SHORT position failure: {str(close_e)}", exc_info=True)
-                    return None
-            elif long_exchange == "Lighter":
-                logger.info(f"Opening LONG position on Lighter for {asset} with size ${position_size_usd}")
-                try:
-                    long_result = await lighter.open_long(asset, position_size_usd)
-                    long_success = "error" not in long_result
-                    logger.debug(f"Lighter LONG result: {long_result}")
-                    if not long_success:
-                        logger.error(f"Failed to open LONG position on Lighter: {long_result.get('error', 'Unknown error')}")
-                        logger.warning("Lighter order placement failed - this is expected without valid credentials")
-                        return None
-                except Exception as e:
-                    logger.error(f"Failed to open LONG position on Lighter: {str(e)}", exc_info=True)
-                    logger.warning("Lighter order placement failed - this is expected without valid credentials")
-                    return None
-                
-                logger.info(f"Opening SHORT position on Backpack for {asset} with size ${position_size_usd}")
-                try:
-                    short_result = backpack.open_short(asset, position_size_usd)
-                    short_success = "status" not in short_result or short_result["status"] != "error"
-                    logger.debug(f"Backpack SHORT result: {short_result}")
-                    if not short_success:
-                        logger.error(f"Failed to open SHORT position on Backpack: {short_result.get('message', 'Unknown error')}")
-                        # Try to close the long position we just opened
-                        try:
-                            logger.debug(f"Closing LONG position on Lighter for {asset} after SHORT position failure")
-                            await lighter.close_position(asset)
-                        except Exception as close_e:
-                            logger.error(f"Failed to close LONG position after SHORT position failure: {str(close_e)}", exc_info=True)
-                        return None
-                except Exception as e:
-                    logger.error(f"Failed to open SHORT position on Backpack: {str(e)}", exc_info=True)
-                    # Try to close the long position we just opened
-                    try:
-                        logger.debug(f"Closing LONG position on Lighter for {asset} after SHORT position failure")
-                        await lighter.close_position(asset)
-                    except Exception as close_e:
-                        logger.error(f"Failed to close LONG position after SHORT position failure: {str(close_e)}", exc_info=True)
-                    return None
-            elif long_exchange == "Backpack" and short_exchange == "Lighter":
-                logger.info(f"Opening LONG position on Backpack for {asset} with size ${position_size_usd}")
-                try:
-                    long_result = backpack.open_long(asset, position_size_usd)
-                    long_success = "status" not in long_result or long_result["status"] != "error"
-                    logger.debug(f"Backpack LONG result: {long_result}")
-                    if not long_success:
-                        logger.error(f"Failed to open LONG position on Backpack: {long_result.get('message', 'Unknown error')}")
-                        return None
-                except Exception as e:
-                    logger.error(f"Failed to open LONG position on Backpack: {str(e)}", exc_info=True)
-                    return None
-                
-                logger.info(f"Opening SHORT position on Lighter for {asset} with size ${position_size_usd}")
-                try:
-                    short_result = await lighter.open_short(asset, position_size_usd)
-                    short_success = "error" not in short_result
-                    logger.debug(f"Lighter SHORT result: {short_result}")
-                    if not short_success:
-                        logger.error(f"Failed to open SHORT position on Lighter: {short_result.get('error', 'Unknown error')}")
-                        logger.warning("Lighter order placement failed - this is expected without valid credentials")
-                        # Try to close the long position we just opened
-                        try:
-                            logger.debug(f"Closing LONG position on Backpack for {asset} after SHORT position failure")
-                            backpack.close_asset_position(asset)
-                        except Exception as close_e:
-                            logger.error(f"Failed to close LONG position after SHORT position failure: {str(close_e)}", exc_info=True)
-                        return None
-                except Exception as e:
-                    logger.error(f"Failed to open SHORT position on Lighter: {str(e)}", exc_info=True)
-                    logger.warning("Lighter order placement failed - this is expected without valid credentials")
-                    # Try to close the long position we just opened
-                    try:
-                        logger.debug(f"Closing LONG position on Backpack for {asset} after SHORT position failure")
-                        backpack.close_asset_position(asset)
-                    except Exception as close_e:
-                        logger.error(f"Failed to close LONG position after SHORT position failure: {str(close_e)}", exc_info=True)
-                    return None
+            result, long_result, short_result, long_success, short_success = await self._execute_exchange_pair(
+                asset,
+                long_exchange,
+                short_exchange,
+                position_size_usd,
+            )
             
             # Make sure both sides were opened successfully
             if not (long_success and short_success):
                 logger.error(f"Failed to execute complete arbitrage for {asset}")
-                # Cleanup any positions that were opened
-                self._cleanup_positions(asset, long_exchange, short_exchange, long_success, short_success)
                 return None
             
             # Log successful arbitrage execution
@@ -986,29 +862,8 @@ class FundingArbitrageEngine:
             logger.debug(f"   SHORT on {short_exchange}: {short_result}")
             
             # Check positions to confirm they were actually opened
-            try:
-                logger.debug("Verifying positions were opened...")
-                # Check Backpack positions
-                bp_positions = backpack.get_positions()
-                if isinstance(bp_positions, list):
-                    logger.debug(f"Backpack positions: {len(bp_positions)}")
-                    for pos in bp_positions:
-                        if pos.get("symbol", "").startswith(asset):
-                            logger.debug(f"   Backpack position: {pos}")
-                else:
-                    logger.warning(f"Unexpected Backpack positions format: {bp_positions}")
-                
-                # Check Hyperliquid positions
-                hl_positions = hyperliquid.get_positions()
-                if isinstance(hl_positions, list):
-                    logger.debug(f"Hyperliquid positions: {len(hl_positions)}")
-                    for pos in hl_positions:
-                        if pos.get("coin") == asset:
-                            logger.debug(f"   Hyperliquid position: {pos}")
-                else:
-                    logger.warning(f"Unexpected Hyperliquid positions format: {hl_positions}")
-            except Exception as e:
-                logger.error(f"Error verifying positions: {str(e)}", exc_info=True)
+            logger.debug("Verifying positions were opened...")
+            await self._verify_open_positions(asset, [long_exchange, short_exchange])
             
             return {
                 "long_exchange": long_exchange,
@@ -1022,28 +877,8 @@ class FundingArbitrageEngine:
         except Exception as e:
             logger.error(f"Error executing arbitrage: {str(e)}", exc_info=True)
             logger.debug("Attempting to close any open positions from failed execution...")
-            try:
-                if long_exchange == "Backpack":
-                    logger.debug(f"Closing any LONG position on Backpack for {asset}")
-                    backpack.close_asset_position(asset)
-                elif long_exchange == "Hyperliquid":
-                    logger.debug(f"Closing any LONG position on Hyperliquid for {asset}")
-                    hyperliquid.close_position(asset)
-                elif long_exchange == "TradeXYZ":
-                    logger.debug(f"Closing any LONG position on TradeXYZ for {asset}")
-                    self.exchanges.get("TradeXYZ").close_position(asset)
-                    
-                if short_exchange == "Backpack":
-                    logger.debug(f"Closing any SHORT position on Backpack for {asset}")
-                    backpack.close_asset_position(asset)
-                elif short_exchange == "Hyperliquid":
-                    logger.debug(f"Closing any SHORT position on Hyperliquid for {asset}")
-                    hyperliquid.close_position(asset)
-                elif short_exchange == "TradeXYZ":
-                    logger.debug(f"Closing any SHORT position on TradeXYZ for {asset}")
-                    self.exchanges.get("TradeXYZ").close_position(asset)
-            except Exception as close_error:
-                logger.error(f"Error closing positions after failure: {str(close_error)}", exc_info=True)
+            for exchange_name in {long_exchange, short_exchange}:
+                await self._rollback_open_position(exchange_name, self._get_exchange_obj(exchange_name), asset)
             return None
 
     def _cleanup_positions(self, asset, long_exchange, short_exchange, long_success, short_success):
