@@ -13,8 +13,9 @@ from model.core.arbitrage_engine import FundingArbitrageEngine
 
 
 class FakeSyncExchange:
-    def __init__(self):
+    def __init__(self, available_usd=10):
         self.calls = []
+        self.available_usd = available_usd
 
     def open_long(self, asset, amount):
         self.calls.append(("open_long", asset, amount))
@@ -32,6 +33,10 @@ class FakeSyncExchange:
         self.calls.append(("get_market_data", asset))
         return {"price": 123.45}
 
+    def get_available_usd(self, asset=None):
+        self.calls.append(("get_available_usd", asset))
+        return self.available_usd
+
 
 class FakeAsyncExchange:
     def __init__(self):
@@ -48,6 +53,17 @@ class FakeAsyncExchange:
     async def close_position(self, asset):
         self.calls.append(("close_position", asset))
         return {"status": "ok", "success": True}
+
+
+class FakeLighterExecutionExchange(FakeAsyncExchange):
+    signer_client = True
+
+    async def _ensure_account_initialized(self):
+        self.calls.append(("_ensure_account_initialized",))
+
+    async def get_real_balance(self):
+        self.calls.append(("get_real_balance",))
+        return {"free_collateral": "10", "total_asset_value": "10"}
 
 
 class FakeFailingAsyncExchange(FakeAsyncExchange):
@@ -193,6 +209,40 @@ class ArbitrageExecutionTests(unittest.TestCase):
             tradexyz.calls,
             [("get_funding_rates",), ("process_funding_rates", {"raw": True})],
         )
+
+    def test_validate_exchange_balances_checks_tradexyz_available_usd(self):
+        engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)
+        tradexyz = FakeSyncExchange(available_usd=6)
+        engine.exchanges = {"TradeXYZ": tradexyz}
+        engine.position_size = 5
+
+        balances = asyncio.run(engine._validate_exchange_balances())
+
+        self.assertEqual(balances, {"TradeXYZ": True})
+        self.assertEqual(tradexyz.calls, [("get_available_usd", None)])
+
+    def test_execute_tradexyz_pair_requires_tradexyz_balance(self):
+        engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)
+        engine.position_size = 5
+        tradexyz = FakeSyncExchange(available_usd=10)
+        lighter = FakeLighterExecutionExchange()
+        engine.exchanges = {
+            "TradeXYZ": tradexyz,
+            "Lighter": lighter,
+        }
+
+        result = asyncio.run(
+            engine._execute_arbitrage({
+                "asset": "TSLA",
+                "long_exchange": "TradeXYZ",
+                "short_exchange": "Lighter",
+            })
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["long_exchange"], "TradeXYZ")
+        self.assertEqual(result["short_exchange"], "Lighter")
+        self.assertIn(("get_available_usd", "TSLA"), tradexyz.calls)
 
 
 if __name__ == "__main__":

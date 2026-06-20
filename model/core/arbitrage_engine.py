@@ -333,6 +333,10 @@ class FundingArbitrageEngine:
                     available = exchange.get_available_usd()
                     balance_status[exchange_name] = available >= self.position_size
                     logger.info(f"Hyperliquid balance: ${available:.2f} (required: ${self.position_size})")
+                elif exchange_name == "TradeXYZ":
+                    available = exchange.get_available_usd()
+                    balance_status[exchange_name] = available >= self.position_size
+                    logger.info(f"TradeXYZ balance: ${available:.2f} (required: ${self.position_size})")
                 elif exchange_name == "Lighter":
                     balance = await exchange.get_real_balance()
                     free_collateral = float(balance.get("free_collateral", 0))
@@ -722,6 +726,13 @@ class FundingArbitrageEngine:
                             # If we cannot determine, do not block
                             logger.warning("Could not fetch Hyperliquid balance; proceeding conservatively")
                             return True
+                    elif exchange_name == "TradeXYZ":
+                        tradexyz = self.exchanges.get("TradeXYZ")
+                        if not tradexyz:
+                            return False
+                        available = tradexyz.get_available_usd(asset)
+                        logger.debug(f"{exchange_name} available: ${available:.2f}")
+                        return available >= position_size_usd
                     elif exchange_name == "Backpack":
                         try:
                             equity = backpack.get_equity_usd()
