@@ -339,15 +339,23 @@ class HyperliquidExchange(BaseExchange):
     ) -> Dict[str, Any]:
         raw = raw_result if isinstance(raw_result, dict) else {"response": raw_result}
         nested_error = self._extract_order_error(raw)
-        success = raw.get("status") != "error" and "error" not in raw and nested_error is None
+        status = raw.get("status")
+        top_level_error = raw.get("error")
+        response_error = raw.get("response") if status and status != "ok" else None
+        success = (
+            status in (None, "ok")
+            and top_level_error is None
+            and response_error is None
+            and nested_error is None
+        )
         normalized = OrderResult(
             exchange=self.exchange_name,
             success=success,
             asset=asset,
             side=side,
             size=size,
-            error=(nested_error or raw.get("error")) if not success else None,
-            message=raw.get("message") or nested_error,
+            error=(nested_error or top_level_error or response_error) if not success else None,
+            message=raw.get("message") or nested_error or response_error,
             raw=raw,
         ).to_dict()
         compatible = dict(raw)

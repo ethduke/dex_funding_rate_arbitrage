@@ -921,7 +921,11 @@ class FundingArbitrageEngine:
         logger.info(f"Starting funding rate monitor for {opportunity['asset']}...")
         asset = opportunity['asset']
         bp_symbol = f"{asset}_USDC_PERP"
-        exchange_names = ["Backpack", "Hyperliquid", "Lighter", "TradeXYZ"]
+        # Only monitor the venues that actually hold this arbitrage position.
+        # Unrelated exchange clients may have closed or unavailable streams.
+        long_exchange = opportunity['long_exchange']
+        short_exchange = opportunity['short_exchange']
+        exchange_names = [long_exchange, short_exchange]
         
         # Initial rates from the opportunity
         initial_rates = {
@@ -944,10 +948,6 @@ class FundingArbitrageEngine:
         logger.info(f"  Initial max magnitude: {initial_max_magnitude:.8f}")
         logger.info(f"Exit strategy:")
         logger.info(f" Min hold time: {self.min_hold_time_seconds/SECONDS_PER_HOUR} hour && Sign flip on either exchange && Magnitude reduction to {self.magnitude_reduction_threshold*100}% of initial")
-        
-        # Exchange for each side of the trade
-        long_exchange = opportunity['long_exchange'] 
-        short_exchange = opportunity['short_exchange']
         
         # Create async queue for rate updates
         funding_rate_queue = asyncio.Queue()
@@ -1068,15 +1068,15 @@ class FundingArbitrageEngine:
         
         try:
             # Use integrated WebSocket if enabled
-            if backpack and getattr(backpack, "ws_client", None):
+            if "Backpack" in exchange_names and backpack and getattr(backpack, "ws_client", None):
                 await backpack.ws_client.subscribe(f"markPrice.{bp_symbol}", bp_rate_callback)
             
             # Subscribe to Hyperliquid updates
-            if hyperliquid:
+            if "Hyperliquid" in exchange_names and hyperliquid:
                 hyperliquid.subscribe_to_funding_updates(hl_rate_callback)
             
             # Subscribe to Lighter updates
-            if lighter:
+            if "Lighter" in exchange_names and lighter:
                 lighter.subscribe_to_funding_updates(lt_rate_callback)
             
             # Start the HL queue processor
@@ -1085,7 +1085,14 @@ class FundingArbitrageEngine:
             
             # Create polling task
             polling_task = asyncio.create_task(self._poll_funding_rates(
-                backpack, hyperliquid, lighter, asset, funding_rate_queue, tradexyz=tradexyz))
+                backpack,
+                hyperliquid,
+                lighter,
+                asset,
+                funding_rate_queue,
+                tradexyz=tradexyz,
+                monitored_exchanges=set(exchange_names),
+            ))
             tasks.append(polling_task)
             
             # Process funding rates
@@ -1320,14 +1327,24 @@ class FundingArbitrageEngine:
                         pass
             
     
-    async def _poll_funding_rates(self, backpack, hyperliquid, lighter, asset, funding_rate_queue, tradexyz=None):
+    async def _poll_funding_rates(
+        self,
+        backpack,
+        hyperliquid,
+        lighter,
+        asset,
+        funding_rate_queue,
+        tradexyz=None,
+        monitored_exchanges=None,
+    ):
         """Periodically poll funding rates as a backup."""
         bp_symbol = f"{asset}_USDC_PERP"
+        monitored_exchanges = monitored_exchanges or {"Backpack", "Hyperliquid", "Lighter", "TradeXYZ"}
         
         while True:
             try:
                 # Get Backpack rates (normalize response to a list first)
-                if backpack:
+                if "Backpack" in monitored_exchanges and backpack:
                     bp_data = backpack.get_mark_prices()
                     bp_items = []
                     if isinstance(bp_data, list):
@@ -1349,7 +1366,7 @@ class FundingArbitrageEngine:
                             await funding_rate_queue.put(("Backpack", rate, time.time()))
                 
                 # Get Hyperliquid rates
-                if hyperliquid:
+                if "Hyperliquid" in monitored_exchanges and hyperliquid:
                     hl_data = hyperliquid.get_funding_rates()
                     hl_rates = hyperliquid.process_funding_rates(hl_data)
                     if asset in hl_rates:
@@ -1357,7 +1374,7 @@ class FundingArbitrageEngine:
                         await funding_rate_queue.put(("Hyperliquid", rate, time.time()))
             
                 # Get Lighter rates
-                if lighter:
+                if "Lighter" in monitored_exchanges and lighter:
                     lt_data = await lighter.get_funding_rates()
                     lt_rates = lighter.process_funding_rates(lt_data)
                     if asset in lt_rates:
@@ -1365,7 +1382,7 @@ class FundingArbitrageEngine:
                         await funding_rate_queue.put(("Lighter", rate, time.time()))
 
                 # Get TradeXYZ rates
-                if tradexyz:
+                if "TradeXYZ" in monitored_exchanges and tradexyz:
                     tx_data = tradexyz.get_funding_rates()
                     tx_rates = tradexyz.process_funding_rates(tx_data)
                     if asset in tx_rates:
