@@ -1,7 +1,7 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from model.exchanges.hyperliquid import HyperliquidExchange
-from model.exchanges.normalized import FundingRate, to_float
+from model.exchanges.normalized import BalanceSnapshot, FundingRate, to_float
 
 
 class TradeXYZExchange(HyperliquidExchange):
@@ -49,3 +49,61 @@ class TradeXYZExchange(HyperliquidExchange):
             ).to_dict()
 
         return result
+
+    def get_balance_snapshot(self, asset: Optional[str] = None) -> BalanceSnapshot:
+        """Return Trade.xyz collateral availability, including unified-account spot USDC."""
+        balance = super().get_balance_snapshot(asset)
+        if balance.available_usd > 0:
+            return balance
+
+        try:
+            abstraction = self.info.post(
+                "/info",
+                {"type": "userAbstraction", "user": self.address},
+            )
+            if abstraction != "unifiedAccount":
+                return balance
+
+            spot_state = self.info.post(
+                "/info",
+                {"type": "spotClearinghouseState", "user": self.address},
+            )
+            available = self._extract_unified_usdc_available(spot_state)
+            if available <= 0:
+                return balance
+
+            raw = dict(balance.raw or {})
+            raw.update({
+                "userAbstraction": abstraction,
+                "spotClearinghouseState": spot_state,
+            })
+            return BalanceSnapshot(
+                exchange=self.exchange_name,
+                available_usd=available,
+                total_usd=available,
+                account_id=self.address,
+                positions_count=balance.positions_count,
+                raw=raw,
+            )
+        except Exception:
+            return balance
+
+    @staticmethod
+    def _extract_unified_usdc_available(spot_state: Dict) -> float:
+        if not isinstance(spot_state, dict):
+            return 0.0
+
+        token_availability = spot_state.get("tokenToAvailableAfterMaintenance")
+        if isinstance(token_availability, list):
+            for item in token_availability:
+                if isinstance(item, list) and len(item) >= 2 and item[0] == 0:
+                    return to_float(item[1])
+
+        for balance in spot_state.get("balances", []):
+            if not isinstance(balance, dict) or balance.get("coin") != "USDC":
+                continue
+            total = to_float(balance.get("total"))
+            hold = to_float(balance.get("hold"))
+            return max(total - hold, 0.0)
+
+        return 0.0
