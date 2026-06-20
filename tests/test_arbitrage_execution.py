@@ -13,9 +13,10 @@ from model.core.arbitrage_engine import FundingArbitrageEngine
 
 
 class FakeSyncExchange:
-    def __init__(self, available_usd=10):
+    def __init__(self, available_usd=10, funding_assets=None):
         self.calls = []
         self.available_usd = available_usd
+        self.funding_assets = funding_assets or ["TSLA"]
 
     def open_long(self, asset, amount):
         self.calls.append(("open_long", asset, amount))
@@ -37,10 +38,19 @@ class FakeSyncExchange:
         self.calls.append(("get_available_usd", asset))
         return self.available_usd
 
+    def get_funding_rates(self):
+        self.calls.append(("get_funding_rates",))
+        return {"raw": True}
+
+    def process_funding_rates(self, raw_data):
+        self.calls.append(("process_funding_rates", raw_data))
+        return {asset: {"rate": 0.0001} for asset in self.funding_assets}
+
 
 class FakeAsyncExchange:
-    def __init__(self):
+    def __init__(self, funding_assets=None):
         self.calls = []
+        self.funding_assets = funding_assets or ["TSLA"]
 
     async def open_long(self, asset, amount):
         self.calls.append(("open_long", asset, amount))
@@ -53,6 +63,14 @@ class FakeAsyncExchange:
     async def close_position(self, asset):
         self.calls.append(("close_position", asset))
         return {"status": "ok", "success": True}
+
+    async def get_funding_rates(self):
+        self.calls.append(("get_funding_rates",))
+        return {"raw": True}
+
+    def process_funding_rates(self, raw_data):
+        self.calls.append(("process_funding_rates", raw_data))
+        return {asset: {"rate": 0.0001} for asset in self.funding_assets}
 
 
 class FakeLighterExecutionExchange(FakeAsyncExchange):
@@ -243,6 +261,23 @@ class ArbitrageExecutionTests(unittest.TestCase):
         self.assertEqual(result["long_exchange"], "TradeXYZ")
         self.assertEqual(result["short_exchange"], "Lighter")
         self.assertIn(("get_available_usd", "TSLA"), tradexyz.calls)
+
+    def test_trade_pair_exact_symbol_guard_rejects_aliases(self):
+        engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)
+        engine.exchanges = {
+            "TradeXYZ": FakeSyncExchange(funding_assets=["EUR"]),
+            "Lighter": FakeLighterExecutionExchange(funding_assets=["EURUSD"]),
+        }
+
+        eligible = asyncio.run(
+            engine._trade_pair_has_exact_symbol(
+                asset="EUR",
+                long_exchange="TradeXYZ",
+                short_exchange="Lighter",
+            )
+        )
+
+        self.assertFalse(eligible)
 
 
 if __name__ == "__main__":

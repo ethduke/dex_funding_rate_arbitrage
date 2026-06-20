@@ -681,6 +681,37 @@ class FundingArbitrageEngine:
             "asset": asset,
             "size": position_size_usd,
         }, long_result, short_result, long_success, short_success
+
+    async def _get_exchange_rate_assets(self, exchange_name: str, exchange_obj) -> set:
+        if exchange_obj is None:
+            return set()
+
+        raw_data = exchange_obj.get_funding_rates()
+        if hasattr(raw_data, "__await__"):
+            raw_data = await raw_data
+
+        rates = exchange_obj.process_funding_rates(raw_data)
+        return set(rates.keys())
+
+    async def _trade_pair_has_exact_symbol(
+        self,
+        asset: str,
+        long_exchange: str,
+        short_exchange: str,
+    ) -> bool:
+        if "TradeXYZ" not in [long_exchange, short_exchange]:
+            return True
+
+        for exchange_name in [long_exchange, short_exchange]:
+            exchange_obj = self._get_exchange_obj(exchange_name)
+            assets = await self._get_exchange_rate_assets(exchange_name, exchange_obj)
+            if asset not in assets:
+                logger.warning(
+                    f"Skipping TradeXYZ opportunity for {asset}: no exact symbol match on {exchange_name}"
+                )
+                return False
+
+        return True
     
     async def _execute_arbitrage(self, opportunity, position_size_usd=None):
         """Execute arbitrage by opening positions on both exchanges."""
@@ -693,6 +724,8 @@ class FundingArbitrageEngine:
         # Get the exchanges and actions
         long_exchange = opportunity['long_exchange']
         short_exchange = opportunity['short_exchange']
+        if not await self._trade_pair_has_exact_symbol(asset, long_exchange, short_exchange):
+            return None
         
                     # Execute the trades
         try:
