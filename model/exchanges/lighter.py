@@ -209,6 +209,9 @@ class LighterExchange(BaseExchange):
             if hasattr(funding_rates_response, 'funding_rates') and funding_rates_response.funding_rates:
                 for rate in funding_rates_response.funding_rates:
                     try:
+                        if getattr(rate, "exchange", None) != "lighter":
+                            continue
+
                         market_id = rate.market_id
                         symbol = await self._get_symbol_by_market_id(market_id)
                         result[symbol] = {

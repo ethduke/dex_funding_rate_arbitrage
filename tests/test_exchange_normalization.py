@@ -1,5 +1,7 @@
 import os
 import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
 
 
 os.environ.setdefault("BACKPACK_API_SECRET", "test-backpack-secret")
@@ -175,6 +177,43 @@ class ExchangeNormalizationTests(unittest.TestCase):
         self.assertEqual(trade["side"], "SELL")
         self.assertEqual(trade["role"], "maker")
         self.assertEqual(trade["fee"], "0.01")
+
+    def test_lighter_funding_rates_ignore_external_venue_rows(self):
+        exchange = LighterExchange.__new__(LighterExchange)
+        exchange.api_client = object()
+
+        async def fake_symbol_by_market_id(market_id):
+            return "AXS"
+
+        exchange._get_symbol_by_market_id = fake_symbol_by_market_id
+
+        class FakeFundingApi:
+            def __init__(self, api_client):
+                self.api_client = api_client
+
+            async def funding_rates(self):
+                return SimpleNamespace(funding_rates=[
+                    SimpleNamespace(
+                        market_id=131,
+                        exchange="binance",
+                        symbol="AXS",
+                        rate=-0.0054767,
+                    ),
+                    SimpleNamespace(
+                        market_id=131,
+                        exchange="lighter",
+                        symbol="AXS",
+                        rate=-0.001696,
+                    ),
+                ])
+
+        import asyncio
+
+        with patch("model.exchanges.lighter.lighter.FundingApi", FakeFundingApi):
+            raw_rates = asyncio.run(exchange.get_funding_rates())
+
+        self.assertEqual(raw_rates["AXS"]["exchange"], "lighter")
+        self.assertEqual(raw_rates["AXS"]["rate"], -0.001696)
 
 
 if __name__ == "__main__":
