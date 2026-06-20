@@ -545,10 +545,11 @@ class FundingArbitrageEngine:
             backpack = self.exchanges.get("Backpack")
             hyperliquid = self.exchanges.get("Hyperliquid")
             lighter = self.exchanges.get("Lighter")
+            tradexyz = self.exchanges.get("TradeXYZ")
             
             # Create the monitoring task
             monitor_task = asyncio.create_task(
-                self.monitor_funding_rates(backpack, hyperliquid, lighter, opportunity)
+                self.monitor_funding_rates(backpack, hyperliquid, lighter, opportunity, tradexyz=tradexyz)
             )
             
             # Track the position and its monitor
@@ -1036,28 +1037,31 @@ class FundingArbitrageEngine:
         except Exception as e:
             logger.error(f"Error cleaning up positions: {str(e)}", exc_info=True)
     
-    async def monitor_funding_rates(self, backpack, hyperliquid, lighter, opportunity):
+    async def monitor_funding_rates(self, backpack, hyperliquid, lighter, opportunity, tradexyz=None):
         """Monitor funding rates and close positions when exit criteria are met."""
         logger.info(f"Starting funding rate monitor for {opportunity['asset']}...")
         asset = opportunity['asset']
         bp_symbol = f"{asset}_USDC_PERP"
+        exchange_names = ["Backpack", "Hyperliquid", "Lighter", "TradeXYZ"]
         
         # Initial rates from the opportunity
-        initial_hl_rate = opportunity['actions']['Hyperliquid']['rate']
-        initial_bp_rate = opportunity['actions']['Backpack']['rate']
-        initial_lt_rate = opportunity['actions'].get('Lighter', {}).get('rate', 0)
+        initial_rates = {
+            exchange_name: opportunity["actions"].get(exchange_name, {}).get("rate", 0)
+            for exchange_name in exchange_names
+        }
         
         # Calculate initial metrics
-        initial_hl_sign = 1 if initial_hl_rate >= 0 else -1
-        initial_bp_sign = 1 if initial_bp_rate >= 0 else -1
-        initial_lt_sign = 1 if initial_lt_rate >= 0 else -1
-        initial_max_magnitude = max(abs(initial_hl_rate), abs(initial_bp_rate), abs(initial_lt_rate))
+        initial_signs = {
+            exchange_name: 1 if rate >= 0 else -1
+            for exchange_name, rate in initial_rates.items()
+        }
+        initial_max_magnitude = max(abs(rate) for rate in initial_rates.values())
         
         # Log initial conditions
         logger.info(f"Initial conditions for {asset}:")
-        logger.info(f"  Hyperliquid rate: {initial_hl_rate:.8f} (sign: {initial_hl_sign})")
-        logger.info(f"  Backpack rate: {initial_bp_rate:.8f} (sign: {initial_bp_sign})")
-        logger.info(f"  Lighter rate: {initial_lt_rate:.8f} (sign: {initial_lt_sign})")
+        for exchange_name, rate in initial_rates.items():
+            if exchange_name in opportunity["actions"]:
+                logger.info(f"  {exchange_name} rate: {rate:.8f} (sign: {initial_signs[exchange_name]})")
         logger.info(f"  Initial max magnitude: {initial_max_magnitude:.8f}")
         logger.info(f"Exit strategy:")
         logger.info(f" Min hold time: {self.min_hold_time_seconds/SECONDS_PER_HOUR} hour && Sign flip on either exchange && Magnitude reduction to {self.magnitude_reduction_threshold*100}% of initial")
@@ -1081,21 +1085,9 @@ class FundingArbitrageEngine:
             "exit_time": None,
             "duration_seconds": 0,
             "duration_hours": 0,
-            "funding_payments": {
-                "Backpack": 0,
-                "Hyperliquid": 0,
-                "Lighter": 0
-            },
-            "entry_prices": {
-                "Backpack": None,
-                "Hyperliquid": None,
-                "Lighter": None
-            },
-            "exit_prices": {
-                "Backpack": None,
-                "Hyperliquid": None,
-                "Lighter": None
-            },
+            "funding_payments": {exchange_name: 0 for exchange_name in exchange_names},
+            "entry_prices": {exchange_name: None for exchange_name in exchange_names},
+            "exit_prices": {exchange_name: None for exchange_name in exchange_names},
             "funding_pnl": 0,
             "price_pnl": 0,
             "fees": 0,
@@ -1106,8 +1098,9 @@ class FundingArbitrageEngine:
         
         # Get entry prices
         try:
-            bp_positions = backpack.get_positions()
-            hl_positions = hyperliquid.get_positions()
+            bp_positions = backpack.get_positions() if backpack else []
+            hl_positions = hyperliquid.get_positions() if hyperliquid else []
+            tx_positions = tradexyz.get_positions() if tradexyz else []
             
             # Process Backpack positions
             for pos in bp_positions:
@@ -1119,6 +1112,12 @@ class FundingArbitrageEngine:
             for pos in hl_positions:
                 if pos.get("coin") == asset:
                     stats["entry_prices"]["Hyperliquid"] = float(pos.get("entryPx", 0))
+                    break
+
+            # Process TradeXYZ positions
+            for pos in tx_positions:
+                if pos.get("asset") == asset:
+                    stats["entry_prices"]["TradeXYZ"] = float(pos.get("entry_price", 0))
                     break
                     
         except Exception as e:
@@ -1190,13 +1189,16 @@ class FundingArbitrageEngine:
         
         try:
             # Use integrated WebSocket if enabled
-            await backpack.ws_client.subscribe(f"markPrice.{bp_symbol}", bp_rate_callback)
+            if backpack and getattr(backpack, "ws_client", None):
+                await backpack.ws_client.subscribe(f"markPrice.{bp_symbol}", bp_rate_callback)
             
             # Subscribe to Hyperliquid updates
-            hyperliquid.subscribe_to_funding_updates(hl_rate_callback)
+            if hyperliquid:
+                hyperliquid.subscribe_to_funding_updates(hl_rate_callback)
             
             # Subscribe to Lighter updates
-            lighter.subscribe_to_funding_updates(lt_rate_callback)
+            if lighter:
+                lighter.subscribe_to_funding_updates(lt_rate_callback)
             
             # Start the HL queue processor
             hl_processor_task = asyncio.create_task(process_hl_queue())
@@ -1204,22 +1206,17 @@ class FundingArbitrageEngine:
             
             # Create polling task
             polling_task = asyncio.create_task(self._poll_funding_rates(
-                backpack, hyperliquid, lighter, asset, funding_rate_queue))
+                backpack, hyperliquid, lighter, asset, funding_rate_queue, tradexyz=tradexyz))
             tasks.append(polling_task)
             
             # Process funding rates
             latest_rates = {
-                "Hyperliquid": {"rate": initial_hl_rate, "sign": initial_hl_sign},
-                "Backpack": {"rate": initial_bp_rate, "sign": initial_bp_sign},
-                "Lighter": {"rate": initial_lt_rate, "sign": initial_lt_sign}
+                exchange_name: {"rate": rate, "sign": initial_signs[exchange_name]}
+                for exchange_name, rate in initial_rates.items()
             }
             
             # Track funding payments
-            last_funding_time = {
-                "Hyperliquid": trade_start_time,
-                "Backpack": trade_start_time,
-                "Lighter": trade_start_time
-            }
+            last_funding_time = {exchange_name: trade_start_time for exchange_name in exchange_names}
             
             position_closed = False
             
@@ -1240,10 +1237,7 @@ class FundingArbitrageEngine:
                     latest_rates[exchange]["sign"] = current_sign
                     
                     # Calculate current metrics
-                    hl_rate = latest_rates["Hyperliquid"]["rate"]
-                    bp_rate = latest_rates["Backpack"]["rate"]
-                    lt_rate = latest_rates["Lighter"]["rate"]
-                    current_max_magnitude = max(abs(hl_rate), abs(bp_rate), abs(lt_rate))
+                    current_max_magnitude = max(abs(data["rate"]) for data in latest_rates.values())
                     elapsed_time = timestamp - trade_start_time
                     
                     # Estimate funding payment if it's a fresh funding update (longer intervals)
@@ -1278,7 +1272,10 @@ class FundingArbitrageEngine:
                         # Execute exit if conditions met
                         if exit_reason: #exit_reason
                             logger.info(f"EXIT SIGNAL: {exit_reason}")
-                            logger.info(f"Current conditions - HL: {hl_rate:.8f}, BP: {bp_rate:.8f}, LT: {lt_rate:.8f}, Max magnitude: {current_max_magnitude:.8f}")
+                            rate_summary = ", ".join(
+                                f"{name}: {data['rate']:.8f}" for name, data in latest_rates.items()
+                            )
+                            logger.info(f"Current conditions - {rate_summary}, Max magnitude: {current_max_magnitude:.8f}")
                             
                             # Record exit time
                             stats["exit_time"] = timestamp
@@ -1292,6 +1289,7 @@ class FundingArbitrageEngine:
                                 "Backpack": backpack,
                                 "Hyperliquid": hyperliquid,
                                 "Lighter": lighter,
+                                "TradeXYZ": tradexyz,
                             }
                             
                             # Close positions using the shared helper method
@@ -1317,29 +1315,31 @@ class FundingArbitrageEngine:
                                 await asyncio.sleep(2)
                                 
                                 # Check Backpack positions
-                                bp_positions = backpack.get_positions()
                                 bp_position_closed = True
-                                if isinstance(bp_positions, list):
-                                    for pos in bp_positions:
-                                        if pos.get("symbol", "").startswith(asset) and float(pos.get("positionSize", "0")) != 0:
-                                            bp_position_closed = False
-                                            logger.warning(f"Backpack position still open: {pos}")
-                                            # Try one more time to close
-                                            if pos.get("symbol") == f"{asset}_USDC_PERP":
-                                                logger.info("Making one final attempt to close Backpack position")
-                                                backpack.close_position(pos.get("symbol"), float(pos.get("positionSize", "0")))
+                                if backpack:
+                                    bp_positions = backpack.get_positions()
+                                    if isinstance(bp_positions, list):
+                                        for pos in bp_positions:
+                                            if pos.get("symbol", "").startswith(asset) and float(pos.get("positionSize", "0")) != 0:
+                                                bp_position_closed = False
+                                                logger.warning(f"Backpack position still open: {pos}")
+                                                # Try one more time to close
+                                                if pos.get("symbol") == f"{asset}_USDC_PERP":
+                                                    logger.info("Making one final attempt to close Backpack position")
+                                                    backpack.close_position(pos.get("symbol"), float(pos.get("positionSize", "0")))
                                 
                                 # Check Hyperliquid positions
-                                hl_positions = hyperliquid.get_positions()
                                 hl_position_closed = True
-                                if isinstance(hl_positions, list):
-                                    for pos in hl_positions:
-                                        if pos.get("coin") == asset and float(pos.get("szi", "0")) != 0:
-                                            hl_position_closed = False
-                                            logger.warning(f"Hyperliquid position still open: {pos}")
-                                            # Try one more time to close
-                                            logger.info("Making one final attempt to close Hyperliquid position")
-                                            hyperliquid.close_position(asset)
+                                if hyperliquid:
+                                    hl_positions = hyperliquid.get_positions()
+                                    if isinstance(hl_positions, list):
+                                        for pos in hl_positions:
+                                            if pos.get("coin") == asset and float(pos.get("szi", "0")) != 0:
+                                                hl_position_closed = False
+                                                logger.warning(f"Hyperliquid position still open: {pos}")
+                                                # Try one more time to close
+                                                logger.info("Making one final attempt to close Hyperliquid position")
+                                                hyperliquid.close_position(asset)
 
                                 # Check Lighter positions
                                 lt_position_closed = True
@@ -1352,8 +1352,19 @@ class FundingArbitrageEngine:
                                                 logger.warning(f"Lighter position still open: {pos}")
                                                 logger.info("Making one final attempt to close Lighter position")
                                                 await lighter.close_position(asset)
+
+                                tx_position_closed = True
+                                if tradexyz:
+                                    tx_positions = tradexyz.get_positions()
+                                    if isinstance(tx_positions, list):
+                                        for pos in tx_positions:
+                                            if pos.get("asset") == asset and float(pos.get("size", "0")) != 0:
+                                                tx_position_closed = False
+                                                logger.warning(f"TradeXYZ position still open: {pos}")
+                                                logger.info("Making one final attempt to close TradeXYZ position")
+                                                tradexyz.close_position(asset)
                                 
-                                if bp_position_closed and hl_position_closed and lt_position_closed:
+                                if bp_position_closed and hl_position_closed and lt_position_closed and tx_position_closed:
                                     logger.info("All positions successfully closed")
                                 else:
                                     logger.warning("Some positions may still be open")
@@ -1430,46 +1441,57 @@ class FundingArbitrageEngine:
                         pass
             
     
-    async def _poll_funding_rates(self, backpack, hyperliquid, lighter, asset, funding_rate_queue):
+    async def _poll_funding_rates(self, backpack, hyperliquid, lighter, asset, funding_rate_queue, tradexyz=None):
         """Periodically poll funding rates as a backup."""
         bp_symbol = f"{asset}_USDC_PERP"
         
         while True:
             try:
                 # Get Backpack rates (normalize response to a list first)
-                bp_data = backpack.get_mark_prices()
-                bp_items = []
-                if isinstance(bp_data, list):
-                    bp_items = bp_data
-                elif isinstance(bp_data, dict):
-                    # Skip on explicit error
-                    if bp_data.get("error"):
-                        logger.warning(f"Backpack mark prices error: {bp_data.get('error')}")
-                    else:
-                        # Common containers seen: data / markPrices
-                        if isinstance(bp_data.get("data"), list):
-                            bp_items = bp_data["data"]
-                        elif isinstance(bp_data.get("markPrices"), list):
-                            bp_items = bp_data["markPrices"]
+                if backpack:
+                    bp_data = backpack.get_mark_prices()
+                    bp_items = []
+                    if isinstance(bp_data, list):
+                        bp_items = bp_data
+                    elif isinstance(bp_data, dict):
+                        # Skip on explicit error
+                        if bp_data.get("error"):
+                            logger.warning(f"Backpack mark prices error: {bp_data.get('error')}")
+                        else:
+                            # Common containers seen: data / markPrices
+                            if isinstance(bp_data.get("data"), list):
+                                bp_items = bp_data["data"]
+                            elif isinstance(bp_data.get("markPrices"), list):
+                                bp_items = bp_data["markPrices"]
 
-                for item in bp_items:
-                    if isinstance(item, dict) and item.get("symbol") == bp_symbol:
-                        rate = float(item.get("fundingRate", 0))
-                        await funding_rate_queue.put(("Backpack", rate, time.time()))
+                    for item in bp_items:
+                        if isinstance(item, dict) and item.get("symbol") == bp_symbol:
+                            rate = float(item.get("fundingRate", 0))
+                            await funding_rate_queue.put(("Backpack", rate, time.time()))
                 
                 # Get Hyperliquid rates
-                hl_data = hyperliquid.get_funding_rates()
-                hl_rates = hyperliquid.process_funding_rates(hl_data)
-                if asset in hl_rates:
-                    rate = hl_rates[asset]["rate"]
-                    await funding_rate_queue.put(("Hyperliquid", rate, time.time()))
+                if hyperliquid:
+                    hl_data = hyperliquid.get_funding_rates()
+                    hl_rates = hyperliquid.process_funding_rates(hl_data)
+                    if asset in hl_rates:
+                        rate = hl_rates[asset]["rate"]
+                        await funding_rate_queue.put(("Hyperliquid", rate, time.time()))
             
                 # Get Lighter rates
-                lt_data = await lighter.get_funding_rates()
-                lt_rates = lighter.process_funding_rates(lt_data)
-                if asset in lt_rates:
-                    rate = lt_rates[asset]["rate"]
-                    await funding_rate_queue.put(("Lighter", rate, time.time()))
+                if lighter:
+                    lt_data = await lighter.get_funding_rates()
+                    lt_rates = lighter.process_funding_rates(lt_data)
+                    if asset in lt_rates:
+                        rate = lt_rates[asset]["rate"]
+                        await funding_rate_queue.put(("Lighter", rate, time.time()))
+
+                # Get TradeXYZ rates
+                if tradexyz:
+                    tx_data = tradexyz.get_funding_rates()
+                    tx_rates = tradexyz.process_funding_rates(tx_data)
+                    if asset in tx_rates:
+                        rate = tx_rates[asset]["rate"]
+                        await funding_rate_queue.put(("TradeXYZ", rate, time.time()))
             
             except Exception as e:
                 logger.error(f"Error polling rates: {e}")

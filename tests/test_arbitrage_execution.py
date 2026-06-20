@@ -56,6 +56,19 @@ class FakeFailingAsyncExchange(FakeAsyncExchange):
         return {"status": "error", "error": "rejected"}
 
 
+class FakeFundingExchange:
+    def __init__(self):
+        self.calls = []
+
+    def get_funding_rates(self):
+        self.calls.append(("get_funding_rates",))
+        return {"raw": True}
+
+    def process_funding_rates(self, raw_data):
+        self.calls.append(("process_funding_rates", raw_data))
+        return {"TSLA": {"rate": 0.0002}}
+
+
 class ArbitrageExecutionTests(unittest.TestCase):
     def test_tradexyz_pair_routes_sync_and_async_order_calls(self):
         engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)
@@ -144,6 +157,42 @@ class ArbitrageExecutionTests(unittest.TestCase):
             [("close_position", "TSLA"), ("get_market_data", "TSLA")],
         )
         self.assertEqual(stats["exit_prices"]["TradeXYZ"], 123.45)
+
+    def test_poll_funding_rates_emits_tradexyz_updates(self):
+        async def run_test():
+            engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)
+            tradexyz = FakeFundingExchange()
+            queue = asyncio.Queue()
+            task = asyncio.create_task(
+                engine._poll_funding_rates(
+                    backpack=None,
+                    hyperliquid=None,
+                    lighter=None,
+                    asset="TSLA",
+                    funding_rate_queue=queue,
+                    tradexyz=tradexyz,
+                )
+            )
+
+            try:
+                exchange, rate, _ = await asyncio.wait_for(queue.get(), timeout=1)
+            finally:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+            return tradexyz, exchange, rate
+
+        tradexyz, exchange, rate = asyncio.run(run_test())
+
+        self.assertEqual(exchange, "TradeXYZ")
+        self.assertEqual(rate, 0.0002)
+        self.assertEqual(
+            tradexyz.calls,
+            [("get_funding_rates",), ("process_funding_rates", {"raw": True})],
+        )
 
 
 if __name__ == "__main__":
