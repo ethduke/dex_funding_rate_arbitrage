@@ -1,6 +1,6 @@
 import asyncio
 from utils.logger import setup_logger
-from model.core.arbitrage_engine import FundingArbitrageEngine
+from model.core.arbitrage_engine import FundingArbitrageEngine, resolve_exchange_classes
 from utils.config import CONFIG
 
 # Initialize logger
@@ -18,6 +18,8 @@ async def main():
             min_hold_time_seconds=int(CONFIG.get('MIN_HOLD_TIME_SECONDS')),
             magnitude_reduction_threshold=float(CONFIG.get('MAGNITUDE_REDUCTION_THRESHOLD')),
             check_interval_minutes=int(CONFIG.get('CHECK_INTERVAL_MINUTES')),
+            exchanges=resolve_exchange_classes(CONFIG.get('EXCHANGES_ENABLED')),
+            comparison_pairs=CONFIG.get('EXCHANGE_COMPARISON_PAIRS'),
             use_ws=True  # Enable WebSockets for real-time data
         )
         

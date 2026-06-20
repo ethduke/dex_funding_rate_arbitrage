@@ -1,7 +1,7 @@
 import os
 import yaml
 from dotenv import load_dotenv
-from typing import Any
+from typing import Any, List, Optional
 
 load_dotenv()
 
@@ -70,6 +70,36 @@ class Config:
         self.MAGNITUDE_REDUCTION_THRESHOLD = float(config.get("MAGNITUDE_REDUCTION_THRESHOLD"))
         self.CHECK_INTERVAL_MINUTES = int(config.get("CHECK_INTERVAL_MINUTES"))
         self.MAX_CONCURRENT_POSITIONS = int(config.get("MAX_CONCURRENT_POSITIONS"))
+        exchange_config = config.get("EXCHANGES", config.get("exchanges", {})) or {}
+        self.EXCHANGES_ENABLED = self._as_string_list(
+            exchange_config.get("ENABLED", exchange_config.get("enabled")),
+            default=["Backpack", "Hyperliquid", "Lighter", "TradeXYZ"],
+        )
+        self.EXCHANGE_COMPARISON_PAIRS = self._as_pair_list(
+            exchange_config.get("COMPARISON_PAIRS", exchange_config.get("comparison_pairs"))
+        )
+
+    @staticmethod
+    def _as_string_list(value: Any, default: Optional[List[str]] = None) -> List[str]:
+        if value is None:
+            return list(default or [])
+        if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+            raise ValueError("Exchange enabled list must be a list of exchange names")
+        return value
+
+    @staticmethod
+    def _as_pair_list(value: Any) -> Optional[List[List[str]]]:
+        if value is None:
+            return None
+        if not isinstance(value, list):
+            raise ValueError("Exchange comparison pairs must be a list")
+
+        pairs = []
+        for pair in value:
+            if not isinstance(pair, list) or len(pair) != 2 or not all(isinstance(item, str) for item in pair):
+                raise ValueError("Each exchange comparison pair must be a two-item list of exchange names")
+            pairs.append(pair)
+        return pairs
 
     def get(self, key: str, default: Any = None) -> Any:
         """

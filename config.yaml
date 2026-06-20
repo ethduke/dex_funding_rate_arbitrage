@@ -24,3 +24,12 @@ MIN_HOLD_TIME_SECONDS: 3600
 MAGNITUDE_REDUCTION_THRESHOLD: 0.1
 CHECK_INTERVAL_MINUTES: 30
 MAX_CONCURRENT_POSITIONS: 1
+
+EXCHANGES:
+  ENABLED:
+    - Lighter
+    - Hyperliquid
+    - TradeXYZ
+  COMPARISON_PAIRS:
+    - [Lighter, Hyperliquid]
+    - [Lighter, TradeXYZ]

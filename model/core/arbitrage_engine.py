@@ -1,7 +1,7 @@
 import asyncio
 import queue
 import time
-from typing import Dict, List, Optional, Type
+from typing import Dict, List, Optional, Tuple, Type
 from datetime import datetime
 from utils.logger import setup_logger
 
@@ -17,6 +17,52 @@ logger = setup_logger(__name__)
 # Time constants
 SECONDS_PER_HOUR = 3600
 
+EXCHANGE_CLASSES = {
+    "Backpack": BackpackExchange,
+    "Hyperliquid": HyperliquidExchange,
+    "Lighter": LighterExchange,
+    "TradeXYZ": TradeXYZExchange,
+}
+
+
+def resolve_exchange_classes(exchange_names: Optional[List[str]]) -> List[Type[BaseExchange]]:
+    """Resolve configured exchange names to exchange classes."""
+    if not exchange_names:
+        return list(EXCHANGE_CLASSES.values())
+
+    unknown = [name for name in exchange_names if name not in EXCHANGE_CLASSES]
+    if unknown:
+        valid = ", ".join(sorted(EXCHANGE_CLASSES))
+        raise ValueError(f"Unknown exchange(s): {unknown}. Valid exchanges: {valid}")
+
+    return [EXCHANGE_CLASSES[name] for name in exchange_names]
+
+
+def normalize_comparison_pairs(
+    comparison_pairs: Optional[List[List[str]]],
+) -> Optional[List[Tuple[str, str]]]:
+    """Validate and normalize configured exchange comparison pairs."""
+    if not comparison_pairs:
+        return None
+
+    normalized = []
+    for pair in comparison_pairs:
+        if len(pair) != 2:
+            raise ValueError(f"Comparison pair must contain exactly two exchanges: {pair}")
+
+        ex1, ex2 = pair
+        if ex1 == ex2:
+            raise ValueError(f"Comparison pair cannot compare an exchange to itself: {pair}")
+
+        for exchange_name in pair:
+            if exchange_name not in EXCHANGE_CLASSES:
+                valid = ", ".join(sorted(EXCHANGE_CLASSES))
+                raise ValueError(f"Unknown exchange '{exchange_name}' in comparison pair. Valid exchanges: {valid}")
+
+        normalized.append((ex1, ex2))
+
+    return normalized
+
 class FundingArbitrageEngine:
     def __init__(self, 
                  min_rate_difference: float,
@@ -25,6 +71,7 @@ class FundingArbitrageEngine:
                  magnitude_reduction_threshold: float,
                  check_interval_minutes: int,
                  exchanges: Optional[List[Type[BaseExchange]]] = None,
+                 comparison_pairs: Optional[List[List[str]]] = None,
                  use_ws: bool = True):
         """Initialize the funding rate arbitrage engine."""
         logger.info("Initializing FundingArbitrageEngine...")
@@ -33,6 +80,7 @@ class FundingArbitrageEngine:
         self.min_hold_time_seconds = min_hold_time_seconds
         self.magnitude_reduction_threshold = magnitude_reduction_threshold
         self.check_interval_minutes = check_interval_minutes
+        self.comparison_pairs = normalize_comparison_pairs(comparison_pairs)
         self.use_ws = use_ws
         
         self.active_positions = {}  # Track active arbitrage positions
@@ -51,7 +99,7 @@ class FundingArbitrageEngine:
         # Initialize exchange clients
         logger.info("Initializing exchange clients...")
         if exchanges is None:
-            exchanges = [BackpackExchange, HyperliquidExchange, LighterExchange, TradeXYZExchange]
+            exchanges = resolve_exchange_classes(None)
             
         self.exchanges = {}
         for exchange_class in exchanges:
@@ -181,6 +229,22 @@ class FundingArbitrageEngine:
         finally:
             logger.info("Periodic check task ended")
 
+    def _exchange_pairs(self, exchanges: List[str]) -> List[Tuple[str, str]]:
+        configured_pairs = getattr(self, "comparison_pairs", None)
+        if not configured_pairs:
+            return [
+                (exchanges[i], exchanges[j])
+                for i in range(len(exchanges))
+                for j in range(i + 1, len(exchanges))
+            ]
+
+        enabled = set(exchanges)
+        return [
+            (ex1, ex2)
+            for ex1, ex2 in configured_pairs
+            if ex1 in enabled and ex2 in enabled
+        ]
+
     def find_arbitrage_opportunities(
         self,
         exchange_rates: Dict[str, Dict[str, Dict]], 
@@ -206,51 +270,49 @@ class FundingArbitrageEngine:
         exchanges = list(exchange_rates.keys())
         logger.info(f"Comparing rates between exchanges: {exchanges}")
         
-        for i in range(len(exchanges)):
-            for j in range(i+1, len(exchanges)):
-                ex1, ex2 = exchanges[i], exchanges[j]
+        for ex1, ex2 in self._exchange_pairs(exchanges):
                 
-                common_assets = set(exchange_rates[ex1].keys()) & set(exchange_rates[ex2].keys())
-                logger.debug(f"Found {len(common_assets)} common assets between {ex1} and {ex2}")
+            common_assets = set(exchange_rates[ex1].keys()) & set(exchange_rates[ex2].keys())
+            logger.debug(f"Found {len(common_assets)} common assets between {ex1} and {ex2}")
+            
+            for asset in common_assets:
+                rate1 = exchange_rates[ex1][asset]["rate"]
+                rate2 = exchange_rates[ex2][asset]["rate"]
                 
-                for asset in common_assets:
-                    rate1 = exchange_rates[ex1][asset]["rate"]
-                    rate2 = exchange_rates[ex2][asset]["rate"]
+                potential_profit = abs(rate2 - rate1)
+                
+                if potential_profit >= min_diff:
+                    long_ex = ex1 if rate1 < rate2 else ex2
+                    short_ex = ex2 if rate1 < rate2 else ex1
+                    long_rate = min(rate1, rate2)
+                    short_rate = max(rate1, rate2)
                     
-                    potential_profit = abs(rate2 - rate1)
+                    # Get additional exchange data
+                    long_ex_data = exchange_rates[long_ex][asset]
+                    short_ex_data = exchange_rates[short_ex][asset]
                     
-                    if potential_profit >= min_diff:
-                        long_ex = ex1 if rate1 < rate2 else ex2
-                        short_ex = ex2 if rate1 < rate2 else ex1
-                        long_rate = min(rate1, rate2)
-                        short_rate = max(rate1, rate2)
-                        
-                        # Get additional exchange data
-                        long_ex_data = exchange_rates[long_ex][asset]
-                        short_ex_data = exchange_rates[short_ex][asset]
-                        
-                        opportunities.append({
-                            "asset": asset,
-                            "exchanges": [ex1, ex2],
-                            "rates": {ex1: rate1, ex2: rate2},
-                            "potential_profit": potential_profit,
-                            "strategy": f"LONG on {long_ex} (rate: {long_rate:.6f}), SHORT on {short_ex} (rate: {short_rate:.6f})",
-                            "estimated_daily_profit": potential_profit * 3,  # Assuming 8-hour funding periods
-                            "actions": {
-                                long_ex: {
-                                    "action": "LONG",
-                                    "rate": long_ex_data["rate"],
-                                    "next_funding_time": long_ex_data.get("next_funding_time", 0)
-                                },
-                                short_ex: {
-                                    "action": "SHORT",
-                                    "rate": short_ex_data["rate"],
-                                    "next_funding_time": short_ex_data.get("next_funding_time", 0)
-                                }
+                    opportunities.append({
+                        "asset": asset,
+                        "exchanges": [ex1, ex2],
+                        "rates": {ex1: rate1, ex2: rate2},
+                        "potential_profit": potential_profit,
+                        "strategy": f"LONG on {long_ex} (rate: {long_rate:.6f}), SHORT on {short_ex} (rate: {short_rate:.6f})",
+                        "estimated_daily_profit": potential_profit * 3,  # Assuming 8-hour funding periods
+                        "actions": {
+                            long_ex: {
+                                "action": "LONG",
+                                "rate": long_ex_data["rate"],
+                                "next_funding_time": long_ex_data.get("next_funding_time", 0)
                             },
-                            "long_exchange": long_ex,
-                            "short_exchange": short_ex
-                        })
+                            short_ex: {
+                                "action": "SHORT",
+                                "rate": short_ex_data["rate"],
+                                "next_funding_time": short_ex_data.get("next_funding_time", 0)
+                            }
+                        },
+                        "long_exchange": long_ex,
+                        "short_exchange": short_ex
+                    })
         
         # Sort by largest potential profit first
         opportunities.sort(key=lambda x: x["potential_profit"], reverse=True)
