@@ -611,6 +611,32 @@ class FundingArbitrageEngine:
             logger.error(f"Failed to open {side} position on {exchange_name}: {e}", exc_info=True)
             return None, False
 
+    async def _rollback_open_position(self, exchange_name: str, exchange_obj, asset: str) -> bool:
+        """Best-effort close for one leg opened during a failed execution."""
+        if exchange_obj is None:
+            logger.error(f"No exchange object available to roll back {exchange_name} position")
+            return False
+
+        try:
+            logger.info(f"Rolling back open position on {exchange_name} for {asset}")
+            if exchange_name == "Backpack":
+                result = exchange_obj.close_asset_position(asset)
+            else:
+                result = exchange_obj.close_position(asset)
+
+            if hasattr(result, "__await__"):
+                result = await result
+
+            if isinstance(result, dict) and (result.get("status") == "error" or "error" in result):
+                logger.warning(f"Rollback close failed on {exchange_name}: {result}")
+                return False
+
+            logger.info(f"Rollback close result on {exchange_name}: {result}")
+            return True
+        except Exception as e:
+            logger.error(f"Error rolling back {exchange_name} position for {asset}: {e}", exc_info=True)
+            return False
+
     async def _execute_tradexyz_pair(
         self,
         asset: str,
@@ -639,6 +665,7 @@ class FundingArbitrageEngine:
             position_size_usd,
         )
         if not short_success:
+            await self._rollback_open_position(long_exchange, long_obj, asset)
             return None, long_result, short_result, long_success, short_success
 
         return {

@@ -24,6 +24,10 @@ class FakeSyncExchange:
         self.calls.append(("open_short", asset, amount))
         return {"status": "ok", "success": True}
 
+    def close_position(self, asset):
+        self.calls.append(("close_position", asset))
+        return {"status": "ok", "success": True}
+
 
 class FakeAsyncExchange:
     def __init__(self):
@@ -36,6 +40,16 @@ class FakeAsyncExchange:
     async def open_short(self, asset, amount):
         self.calls.append(("open_short", asset, amount))
         return {"status": "ok", "success": True}
+
+    async def close_position(self, asset):
+        self.calls.append(("close_position", asset))
+        return {"status": "ok", "success": True}
+
+
+class FakeFailingAsyncExchange(FakeAsyncExchange):
+    async def open_short(self, asset, amount):
+        self.calls.append(("open_short", asset, amount))
+        return {"status": "error", "error": "rejected"}
 
 
 class ArbitrageExecutionTests(unittest.TestCase):
@@ -62,6 +76,33 @@ class ArbitrageExecutionTests(unittest.TestCase):
         self.assertEqual(result["long_exchange"], "TradeXYZ")
         self.assertEqual(result["short_exchange"], "Lighter")
         self.assertEqual(tradexyz.calls, [("open_long", "TSLA", 5)])
+        self.assertEqual(lighter.calls, [("open_short", "TSLA", 5)])
+
+    def test_tradexyz_pair_rolls_back_long_when_short_fails(self):
+        engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)
+        tradexyz = FakeSyncExchange()
+        lighter = FakeFailingAsyncExchange()
+        engine.exchanges = {
+            "TradeXYZ": tradexyz,
+            "Lighter": lighter,
+        }
+
+        result, _, _, long_success, short_success = asyncio.run(
+            engine._execute_tradexyz_pair(
+                asset="TSLA",
+                long_exchange="TradeXYZ",
+                short_exchange="Lighter",
+                position_size_usd=5,
+            )
+        )
+
+        self.assertIsNone(result)
+        self.assertTrue(long_success)
+        self.assertFalse(short_success)
+        self.assertEqual(
+            tradexyz.calls,
+            [("open_long", "TSLA", 5), ("close_position", "TSLA")],
+        )
         self.assertEqual(lighter.calls, [("open_short", "TSLA", 5)])
 
 
