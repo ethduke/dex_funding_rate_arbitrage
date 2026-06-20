@@ -567,6 +567,88 @@ class FundingArbitrageEngine:
         except Exception as e:
             logger.error(f"Error opening position for {asset}: {str(e)}", exc_info=True)
             return False 
+
+    def _get_exchange_obj(self, exchange_name: str):
+        return self.exchanges.get(exchange_name)
+
+    @staticmethod
+    def _order_succeeded(result: Dict) -> bool:
+        if not isinstance(result, dict):
+            return False
+        if result.get("success") is False:
+            return False
+        if result.get("status") == "error" or "error" in result:
+            return False
+        return True
+
+    async def _open_exchange_position(
+        self,
+        exchange_name: str,
+        exchange_obj,
+        side: str,
+        asset: str,
+        position_size_usd: float,
+    ):
+        """Open one side of an arbitrage position on a named exchange."""
+        if exchange_obj is None:
+            logger.error(f"{exchange_name} exchange not available")
+            return None, False
+
+        open_method = exchange_obj.open_long if side == "LONG" else exchange_obj.open_short
+        logger.info(f"Opening {side} position on {exchange_name} for {asset} with size ${position_size_usd}")
+
+        try:
+            result = open_method(asset, position_size_usd)
+            if hasattr(result, "__await__"):
+                result = await result
+
+            success = self._order_succeeded(result)
+            logger.debug(f"{exchange_name} {side} result: {result}")
+            if not success:
+                logger.error(f"Failed to open {side} position on {exchange_name}: {result}")
+            return result, success
+        except Exception as e:
+            logger.error(f"Failed to open {side} position on {exchange_name}: {e}", exc_info=True)
+            return None, False
+
+    async def _execute_tradexyz_pair(
+        self,
+        asset: str,
+        long_exchange: str,
+        short_exchange: str,
+        position_size_usd: float,
+    ):
+        long_obj = self._get_exchange_obj(long_exchange)
+        short_obj = self._get_exchange_obj(short_exchange)
+
+        long_result, long_success = await self._open_exchange_position(
+            long_exchange,
+            long_obj,
+            "LONG",
+            asset,
+            position_size_usd,
+        )
+        if not long_success:
+            return None, long_result, None, False, False
+
+        short_result, short_success = await self._open_exchange_position(
+            short_exchange,
+            short_obj,
+            "SHORT",
+            asset,
+            position_size_usd,
+        )
+        if not short_success:
+            return None, long_result, short_result, long_success, short_success
+
+        return {
+            "long_exchange": long_exchange,
+            "short_exchange": short_exchange,
+            "long_result": long_result,
+            "short_result": short_result,
+            "asset": asset,
+            "size": position_size_usd,
+        }, long_result, short_result, long_success, short_success
     
     async def _execute_arbitrage(self, opportunity, position_size_usd=None):
         """Execute arbitrage by opening positions on both exchanges."""
@@ -657,6 +739,17 @@ class FundingArbitrageEngine:
             short_result = None
             long_success = False
             short_success = False
+
+            if "TradeXYZ" in [long_exchange, short_exchange]:
+                result, long_result, short_result, long_success, short_success = await self._execute_tradexyz_pair(
+                    asset,
+                    long_exchange,
+                    short_exchange,
+                    position_size_usd,
+                )
+                if result is None:
+                    return None
+                return result
             
             # Open long position
             if long_exchange == "Backpack":
