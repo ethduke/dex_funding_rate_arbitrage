@@ -251,6 +251,7 @@ class LighterExchange(BaseExchange):
                         next_funding_time=data.get("next_funding_time", 0),
                         mark_price=to_float(data.get("mark_price")),
                         index_price=to_float(data.get("index_price")),
+                        funding_interval_hours=1.0,
                         raw=data,
                     ).to_dict()
                 except Exception as e:
@@ -368,17 +369,14 @@ class LighterExchange(BaseExchange):
             self_trade_equality_mode = CONFIG.LIGHTER_SELF_TRADE_EQUALITY_MODE
 
             # Log order parameters for debugging
-            logger.info(f"🔍 Order parameters:")
-            logger.info(f"   Symbol: {symbol}, Side: {side}")
-            logger.info(f"   Market ID: {market_id}")
-            logger.info(f"   Base amount: {base_amount}")
-            logger.info(f"   Size decimal: {size_decimal}")
-            logger.info(f"   Price decimal: {price_decimal}")
-            logger.info(f"   Max slippage: {max_slippage}")
-            logger.info(f"   Is ask: {is_ask}")
-            logger.info(f"   Reduce only: {reduce_only}")
-            logger.info(f"   Self-trade behavior mode: {self_trade_behavior_mode}")
-            logger.info(f"   Self-trade equality mode: {self_trade_equality_mode}")
+            logger.debug(
+                "Lighter order parameters: "
+                f"symbol={symbol}, side={side}, market_id={market_id}, base_amount={base_amount}, "
+                f"size_decimal={size_decimal}, price_decimal={price_decimal}, max_slippage={max_slippage}, "
+                f"is_ask={is_ask}, reduce_only={reduce_only}, "
+                f"self_trade_behavior_mode={self_trade_behavior_mode}, "
+                f"self_trade_equality_mode={self_trade_equality_mode}"
+            )
 
             create_order = getattr(self.signer_client, "create_order", None)
             create_order_params = inspect.signature(create_order).parameters if create_order else {}
@@ -416,9 +414,9 @@ class LighterExchange(BaseExchange):
                 )
 
             tx = (created, api_resp, err)
-            
-            logger.info(f"Lighter market order created: {tx}")
+
             if err:
+                logger.warning(f"Lighter market order rejected: symbol={symbol}, side={side}, error={err}")
                 return OrderResult(
                     exchange="Lighter",
                     success=False,
@@ -429,6 +427,11 @@ class LighterExchange(BaseExchange):
                     message=str(err),
                     raw={"created": created, "api_resp": api_resp, "err": err},
                 ).to_dict()
+            tx_hash = getattr(api_resp, "tx_hash", None)
+            logger.info(
+                f"Lighter market order accepted: symbol={symbol}, side={side}, "
+                f"base_amount={base_amount}, reduce_only={reduce_only}, tx_hash={tx_hash}"
+            )
             result = OrderResult(
                 exchange="Lighter",
                 success=True,

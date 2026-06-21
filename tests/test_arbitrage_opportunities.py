@@ -1,4 +1,5 @@
 import os
+import time
 import unittest
 from unittest.mock import patch
 
@@ -58,6 +59,34 @@ class ArbitrageOpportunityTests(unittest.TestCase):
         self.assertAlmostEqual(opportunities[0]["potential_profit"], 0.0003)
         self.assertEqual(opportunities[0]["long_exchange"], "A")
         self.assertEqual(opportunities[0]["short_exchange"], "B")
+
+    def test_normalizes_funding_spread_by_interval(self):
+        opportunities = self.engine.find_arbitrage_opportunities(
+            {
+                "A": {"BTC": {"rate": 0.008, "funding_interval_hours": 8}},
+                "B": {"BTC": {"rate": 0.0, "funding_interval_hours": 1}},
+            },
+            min_diff=0.00005,
+        )
+
+        self.assertEqual(len(opportunities), 1)
+        self.assertAlmostEqual(opportunities[0]["potential_profit"], 0.001)
+        self.assertAlmostEqual(opportunities[0]["daily_profit_rate"], 0.024)
+        self.assertEqual(opportunities[0]["short_exchange"], "A")
+        self.assertEqual(opportunities[0]["long_exchange"], "B")
+
+    def test_filter_blocked_markets_skips_recently_halted_symbol(self):
+        self.engine._blocked_markets = {
+            ("TradeXYZ", "H100"): time.time() + 60,
+        }
+        opportunities = [
+            {"asset": "H100", "long_exchange": "TradeXYZ", "short_exchange": "Lighter"},
+            {"asset": "RKLB", "long_exchange": "TradeXYZ", "short_exchange": "Lighter"},
+        ]
+
+        filtered = self.engine._filter_blocked_markets(opportunities)
+
+        self.assertEqual([opp["asset"] for opp in filtered], ["RKLB"])
 
     def test_filters_spreads_below_threshold(self):
         opportunities = self.engine.find_arbitrage_opportunities(

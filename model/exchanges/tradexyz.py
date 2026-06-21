@@ -45,6 +45,7 @@ class TradeXYZExchange(HyperliquidExchange):
                 rate=to_float(context.get("funding")),
                 mark_price=to_float(context.get("markPx"), None),
                 index_price=to_float(context.get("oraclePx"), None),
+                funding_interval_hours=1.0,
                 raw={"market": market, "context": context},
             ).to_dict()
 

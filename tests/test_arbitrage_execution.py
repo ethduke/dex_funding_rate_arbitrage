@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 import unittest
 
 
@@ -123,6 +124,20 @@ class FakeNestedRejectingSyncExchange(FakeSyncExchange):
         }
 
 
+class FakeTopLevelRejectingSyncExchange(FakeSyncExchange):
+    def open_long(self, asset, amount):
+        self.calls.append(("open_long", asset, amount))
+        return {
+            "status": "error",
+            "success": False,
+            "error": "User or API Wallet 0xf1 does not exist.",
+            "raw": {
+                "status": "err",
+                "response": "User or API Wallet 0xf1 does not exist.",
+            },
+        }
+
+
 class FakeFundingExchange:
     def __init__(self):
         self.calls = []
@@ -134,6 +149,19 @@ class FakeFundingExchange:
     def process_funding_rates(self, raw_data):
         self.calls.append(("process_funding_rates", raw_data))
         return {"TSLA": {"rate": 0.0002}}
+
+
+class ExplodingFundingExchange:
+    def __init__(self):
+        self.called = False
+
+    def get_funding_rates(self):
+        self.called = True
+        raise AssertionError("unmonitored exchange should not be polled")
+
+    def process_funding_rates(self, raw_data):
+        self.called = True
+        raise AssertionError("unmonitored exchange should not be processed")
 
 
 class ArbitrageExecutionTests(unittest.TestCase):
@@ -189,6 +217,34 @@ class ArbitrageExecutionTests(unittest.TestCase):
         )
         self.assertEqual(lighter.calls, [("open_short", "TSLA", 5)])
 
+    def test_exchange_pair_opens_recently_failed_venue_first(self):
+        engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)
+        engine._exchange_failure_until = {"Lighter": time.time() + 60}
+        engine._blocked_markets = {}
+        tradexyz = FakeSyncExchange()
+        lighter = FakeFailingAsyncExchange()
+        engine.exchanges = {
+            "TradeXYZ": tradexyz,
+            "Lighter": lighter,
+        }
+
+        result, long_result, short_result, long_success, short_success = asyncio.run(
+            engine._execute_exchange_pair(
+                asset="TSLA",
+                long_exchange="TradeXYZ",
+                short_exchange="Lighter",
+                position_size_usd=5,
+            )
+        )
+
+        self.assertIsNone(result)
+        self.assertIsNone(long_result)
+        self.assertIsNotNone(short_result)
+        self.assertFalse(long_success)
+        self.assertFalse(short_success)
+        self.assertEqual(tradexyz.calls, [])
+        self.assertEqual(lighter.calls, [("open_short", "TSLA", 5)])
+
     def test_exchange_pair_rolls_back_long_when_short_has_nested_rejection(self):
         engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)
         lighter = FakeLighterExecutionExchange()
@@ -215,6 +271,30 @@ class ArbitrageExecutionTests(unittest.TestCase):
             [("open_long", "DRAM", 20), ("close_position", "DRAM")],
         )
         self.assertEqual(tradexyz.calls, [("open_short", "DRAM", 20)])
+
+    def test_exchange_pair_does_not_treat_top_level_err_as_success(self):
+        engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)
+        tradexyz = FakeTopLevelRejectingSyncExchange()
+        lighter = FakeLighterExecutionExchange()
+        engine.exchanges = {
+            "TradeXYZ": tradexyz,
+            "Lighter": lighter,
+        }
+
+        result, _, _, long_success, short_success = asyncio.run(
+            engine._execute_exchange_pair(
+                asset="SPCX",
+                long_exchange="TradeXYZ",
+                short_exchange="Lighter",
+                position_size_usd=20,
+            )
+        )
+
+        self.assertIsNone(result)
+        self.assertFalse(long_success)
+        self.assertFalse(short_success)
+        self.assertEqual(tradexyz.calls, [("open_long", "SPCX", 20)])
+        self.assertEqual(lighter.calls, [])
 
     def test_cleanup_positions_closes_tradexyz_successful_leg(self):
         engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)
@@ -283,6 +363,45 @@ class ArbitrageExecutionTests(unittest.TestCase):
 
         self.assertEqual(exchange, "TradeXYZ")
         self.assertEqual(rate, 0.0002)
+        self.assertEqual(
+            tradexyz.calls,
+            [("get_funding_rates",), ("process_funding_rates", {"raw": True})],
+        )
+
+    def test_poll_funding_rates_only_polls_monitored_exchanges(self):
+        async def run_test():
+            engine = FundingArbitrageEngine.__new__(FundingArbitrageEngine)
+            tradexyz = FakeFundingExchange()
+            hyperliquid = ExplodingFundingExchange()
+            queue = asyncio.Queue()
+            task = asyncio.create_task(
+                engine._poll_funding_rates(
+                    backpack=None,
+                    hyperliquid=hyperliquid,
+                    lighter=None,
+                    asset="TSLA",
+                    funding_rate_queue=queue,
+                    tradexyz=tradexyz,
+                    monitored_exchanges={"TradeXYZ"},
+                )
+            )
+
+            try:
+                exchange, rate, _ = await asyncio.wait_for(queue.get(), timeout=1)
+            finally:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+            return tradexyz, hyperliquid, exchange, rate
+
+        tradexyz, hyperliquid, exchange, rate = asyncio.run(run_test())
+
+        self.assertEqual(exchange, "TradeXYZ")
+        self.assertEqual(rate, 0.0002)
+        self.assertFalse(hyperliquid.called)
         self.assertEqual(
             tradexyz.calls,
             [("get_funding_rates",), ("process_funding_rates", {"raw": True})],

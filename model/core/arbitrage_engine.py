@@ -1,4 +1,5 @@
 import asyncio
+import json
 import queue
 import time
 from typing import Dict, List, Optional, Tuple, Type
@@ -16,6 +17,14 @@ logger = setup_logger(__name__)
 
 # Time constants
 SECONDS_PER_HOUR = 3600
+BLOCKED_MARKET_TTL_SECONDS = 30 * 60
+EXECUTION_FAILURE_COOLDOWN_SECONDS = 10 * 60
+DEFAULT_FUNDING_INTERVAL_HOURS = {
+    "Backpack": 8.0,
+    "Hyperliquid": 1.0,
+    "Lighter": 1.0,
+    "TradeXYZ": 1.0,
+}
 
 EXCHANGE_CLASSES = {
     "Backpack": BackpackExchange,
@@ -89,6 +98,8 @@ class FundingArbitrageEngine:
         
         # Balance validation cache (checked once at startup)
         self._balance_status = None
+        self._blocked_markets = {}
+        self._exchange_failure_until = {}
         
         # Cancel event for stopping scheduled tasks
         self.stop_event = asyncio.Event()
@@ -245,6 +256,114 @@ class FundingArbitrageEngine:
             if ex1 in enabled and ex2 in enabled
         ]
 
+    def _ensure_execution_caches(self) -> None:
+        if not hasattr(self, "_blocked_markets"):
+            self._blocked_markets = {}
+        if not hasattr(self, "_exchange_failure_until"):
+            self._exchange_failure_until = {}
+
+    @staticmethod
+    def _order_error_message(result) -> str:
+        if result is None:
+            return ""
+        if isinstance(result, dict):
+            for key in ("error", "message"):
+                value = result.get(key)
+                if value:
+                    return str(value)
+            try:
+                return json.dumps(result, default=str)
+            except (TypeError, ValueError):
+                return str(result)
+        return str(result)
+
+    @classmethod
+    def _summarize_order_result(cls, result) -> str:
+        if not isinstance(result, dict):
+            return str(result)
+
+        parts = []
+        for key in ("status", "success", "asset", "side", "size", "order_id"):
+            if key in result:
+                parts.append(f"{key}={result[key]}")
+
+        error = None
+        for key in ("error", "message"):
+            if result.get(key):
+                error = str(result[key])
+                break
+        if error is None and (result.get("success") is False or result.get("status") == "error"):
+            error = cls._order_error_message(result)
+        if error:
+            parts.append(f"error={error}")
+
+        return ", ".join(parts) if parts else str(result)
+
+    @staticmethod
+    def _funding_interval_hours(exchange_name: str, rate_data: Dict) -> float:
+        interval = rate_data.get("funding_interval_hours")
+        if interval is None:
+            interval = DEFAULT_FUNDING_INTERVAL_HOURS.get(exchange_name, 1.0)
+        try:
+            interval = float(interval)
+        except (TypeError, ValueError):
+            interval = DEFAULT_FUNDING_INTERVAL_HOURS.get(exchange_name, 1.0)
+        return interval if interval > 0 else DEFAULT_FUNDING_INTERVAL_HOURS.get(exchange_name, 1.0)
+
+    def _is_exchange_in_failure_cooldown(self, exchange_name: str) -> bool:
+        self._ensure_execution_caches()
+        expires_at = self._exchange_failure_until.get(exchange_name)
+        if not expires_at:
+            return False
+        if expires_at <= time.time():
+            del self._exchange_failure_until[exchange_name]
+            return False
+        return True
+
+    def _record_execution_failure(self, exchange_name: str, asset: str, result) -> None:
+        self._ensure_execution_caches()
+        now = time.time()
+        self._exchange_failure_until[exchange_name] = now + EXECUTION_FAILURE_COOLDOWN_SECONDS
+
+        message = self._order_error_message(result).lower()
+        if "trading is halted" in message or "market is halted" in message:
+            self._blocked_markets[(exchange_name, asset)] = now + BLOCKED_MARKET_TTL_SECONDS
+            logger.warning(
+                f"Blocking {exchange_name}:{asset} for {BLOCKED_MARKET_TTL_SECONDS // 60} minutes: "
+                f"{self._order_error_message(result)}"
+            )
+
+    def _record_execution_success(self, exchange_name: str) -> None:
+        self._ensure_execution_caches()
+        self._exchange_failure_until.pop(exchange_name, None)
+
+    def _is_market_blocked(self, exchange_name: str, asset: str) -> bool:
+        self._ensure_execution_caches()
+        expires_at = self._blocked_markets.get((exchange_name, asset))
+        if not expires_at:
+            return False
+        if expires_at <= time.time():
+            del self._blocked_markets[(exchange_name, asset)]
+            return False
+        return True
+
+    def _filter_blocked_markets(self, opportunities: List[Dict]) -> List[Dict]:
+        filtered = []
+        for opp in opportunities:
+            asset = opp["asset"]
+            blocked_exchanges = [
+                exchange
+                for exchange in (opp["long_exchange"], opp["short_exchange"])
+                if self._is_market_blocked(exchange, asset)
+            ]
+            if blocked_exchanges:
+                logger.info(
+                    f"Skipping {asset}: blocked on {', '.join(blocked_exchanges)} after recent execution rejection"
+                )
+                continue
+            filtered.append(opp)
+        return filtered
+
     def find_arbitrage_opportunities(
         self,
         exchange_rates: Dict[str, Dict[str, Dict]], 
@@ -276,37 +395,51 @@ class FundingArbitrageEngine:
             logger.debug(f"Found {len(common_assets)} common assets between {ex1} and {ex2}")
             
             for asset in common_assets:
-                rate1 = exchange_rates[ex1][asset]["rate"]
-                rate2 = exchange_rates[ex2][asset]["rate"]
+                ex1_data = exchange_rates[ex1][asset]
+                ex2_data = exchange_rates[ex2][asset]
+                rate1 = ex1_data["rate"]
+                rate2 = ex2_data["rate"]
+                interval1 = self._funding_interval_hours(ex1, ex1_data)
+                interval2 = self._funding_interval_hours(ex2, ex2_data)
+                hourly_rate1 = rate1 / interval1
+                hourly_rate2 = rate2 / interval2
                 
-                potential_profit = abs(rate2 - rate1)
+                potential_profit = abs(hourly_rate2 - hourly_rate1)
                 
                 if potential_profit >= min_diff:
-                    long_ex = ex1 if rate1 < rate2 else ex2
-                    short_ex = ex2 if rate1 < rate2 else ex1
-                    long_rate = min(rate1, rate2)
-                    short_rate = max(rate1, rate2)
+                    long_ex = ex1 if hourly_rate1 < hourly_rate2 else ex2
+                    short_ex = ex2 if hourly_rate1 < hourly_rate2 else ex1
+                    long_rate = hourly_rate1 if long_ex == ex1 else hourly_rate2
+                    short_rate = hourly_rate2 if short_ex == ex2 else hourly_rate1
                     
                     # Get additional exchange data
                     long_ex_data = exchange_rates[long_ex][asset]
                     short_ex_data = exchange_rates[short_ex][asset]
+                    long_interval = self._funding_interval_hours(long_ex, long_ex_data)
+                    short_interval = self._funding_interval_hours(short_ex, short_ex_data)
                     
                     opportunities.append({
                         "asset": asset,
                         "exchanges": [ex1, ex2],
                         "rates": {ex1: rate1, ex2: rate2},
+                        "hourly_rates": {ex1: hourly_rate1, ex2: hourly_rate2},
                         "potential_profit": potential_profit,
-                        "strategy": f"LONG on {long_ex} (rate: {long_rate:.6f}), SHORT on {short_ex} (rate: {short_rate:.6f})",
-                        "estimated_daily_profit": potential_profit * 3,  # Assuming 8-hour funding periods
+                        "daily_profit_rate": potential_profit * 24,
+                        "strategy": f"LONG on {long_ex} (hourly: {long_rate:.6f}), SHORT on {short_ex} (hourly: {short_rate:.6f})",
+                        "estimated_daily_profit": potential_profit * 24,
                         "actions": {
                             long_ex: {
                                 "action": "LONG",
                                 "rate": long_ex_data["rate"],
+                                "hourly_rate": long_rate,
+                                "funding_interval_hours": long_interval,
                                 "next_funding_time": long_ex_data.get("next_funding_time", 0)
                             },
                             short_ex: {
                                 "action": "SHORT",
                                 "rate": short_ex_data["rate"],
+                                "hourly_rate": short_rate,
+                                "funding_interval_hours": short_interval,
                                 "next_funding_time": short_ex_data.get("next_funding_time", 0)
                             }
                         },
@@ -404,7 +537,7 @@ class FundingArbitrageEngine:
                 
                 # Find arbitrage opportunities
                 opportunities = self.find_arbitrage_opportunities(exchange_rates, min_diff=self.min_rate_difference)
-                logger.info(f"Found {len(opportunities)} potential arbitrage opportunities")
+                opportunities = self._filter_blocked_markets(opportunities)
                 
                 # Check balances once at startup (cached)
                 if self._balance_status is None:
@@ -420,10 +553,10 @@ class FundingArbitrageEngine:
                 logger.info(f"After balance filtering: {len(filtered_opportunities)} viable opportunities")
                 
                 # Calculate profit based on position size
-                logger.info("Calculating potential profits...")
                 for opp in filtered_opportunities:
-                    opp['daily_profit_usd'] = self.position_size * abs(opp['potential_profit'])
-                    opp['apr'] = abs(opp['potential_profit']) * 365 * 100
+                    daily_profit_rate = abs(opp.get("daily_profit_rate", opp["potential_profit"] * 24))
+                    opp['daily_profit_usd'] = self.position_size * daily_profit_rate
+                    opp['apr'] = daily_profit_rate * 365 * 100
                 
                 # Sort by APR (highest first)
                 if filtered_opportunities:
@@ -432,13 +565,18 @@ class FundingArbitrageEngine:
                     # Display top N opportunities
                     logger.info(f"\n---- Top 3 Arbitrage Opportunities (Based on ${self.position_size} Position Size) ----")
                     for i, opp in enumerate(filtered_opportunities[:3]):
-                        logger.info(f"{i+1}. {opp['asset']}: Potential Profit = {opp['potential_profit']:.6f}")
+                        logger.info(f"{i+1}. {opp['asset']}: Hourly Spread = {opp['potential_profit']:.6f}")
                         logger.info(f"   Strategy: {opp['strategy']}")
                         logger.info(f"   Daily Profit: ${opp['daily_profit_usd']:.2f} (APR: {opp['apr']:.2f}%)")
                         
                         # Display funding rates
                         for ex in opp['exchanges']:
-                            logger.info(f"   {ex} Rate: {opp['actions'][ex]['rate']:.6f}")
+                            action = opp['actions'][ex]
+                            logger.info(
+                                f"   {ex} Rate: {action['rate']:.6f} / "
+                                f"{action['funding_interval_hours']:.2f}h "
+                                f"(hourly: {action['hourly_rate']:.6f})"
+                            )
                 else:
                     logger.info("No significant arbitrage opportunities found")
                 
@@ -610,7 +748,10 @@ class FundingArbitrageEngine:
             success = self._order_succeeded(result)
             logger.debug(f"{exchange_name} {side} result: {result}")
             if not success:
-                logger.error(f"Failed to open {side} position on {exchange_name}: {result}")
+                logger.error(
+                    f"Failed to open {side} position on {exchange_name}: "
+                    f"{self._summarize_order_result(result)}"
+                )
             return result, success
         except Exception as e:
             logger.error(f"Failed to open {side} position on {exchange_name}: {e}", exc_info=True)
@@ -633,10 +774,12 @@ class FundingArbitrageEngine:
                 result = await result
 
             if isinstance(result, dict) and (result.get("status") == "error" or "error" in result):
-                logger.warning(f"Rollback close failed on {exchange_name}: {result}")
+                logger.warning(
+                    f"Rollback close failed on {exchange_name}: {self._summarize_order_result(result)}"
+                )
                 return False
 
-            logger.info(f"Rollback close result on {exchange_name}: {result}")
+            logger.info(f"Rollback close result on {exchange_name}: {self._summarize_order_result(result)}")
             return True
         except Exception as e:
             logger.error(f"Error rolling back {exchange_name} position for {asset}: {e}", exc_info=True)
@@ -666,27 +809,62 @@ class FundingArbitrageEngine:
         """Execute a two-leg trade using the requested exchange names."""
         long_obj = self._get_exchange_obj(long_exchange)
         short_obj = self._get_exchange_obj(short_exchange)
+        legs = [
+            {"exchange": long_exchange, "obj": long_obj, "side": "LONG"},
+            {"exchange": short_exchange, "obj": short_obj, "side": "SHORT"},
+        ]
+        if (
+            self._is_exchange_in_failure_cooldown(short_exchange)
+            and not self._is_exchange_in_failure_cooldown(long_exchange)
+        ):
+            legs.reverse()
 
-        long_result, long_success = await self._open_exchange_position(
-            long_exchange,
-            long_obj,
-            "LONG",
+        results = {long_exchange: None, short_exchange: None}
+        successes = {long_exchange: False, short_exchange: False}
+        opened_leg = None
+
+        first = legs[0]
+        first_result, first_success = await self._open_exchange_position(
+            first["exchange"],
+            first["obj"],
+            first["side"],
             asset,
             position_size_usd,
         )
-        if not long_success:
-            return None, long_result, None, False, False
+        results[first["exchange"]] = first_result
+        successes[first["exchange"]] = first_success
+        if not first_success:
+            self._record_execution_failure(first["exchange"], asset, first_result)
+            return None, results[long_exchange], results[short_exchange], False, False
 
-        short_result, short_success = await self._open_exchange_position(
-            short_exchange,
-            short_obj,
-            "SHORT",
+        self._record_execution_success(first["exchange"])
+        opened_leg = first
+
+        second = legs[1]
+        second_result, second_success = await self._open_exchange_position(
+            second["exchange"],
+            second["obj"],
+            second["side"],
             asset,
             position_size_usd,
         )
-        if not short_success:
-            await self._rollback_open_position(long_exchange, long_obj, asset)
-            return None, long_result, short_result, long_success, short_success
+        results[second["exchange"]] = second_result
+        successes[second["exchange"]] = second_success
+        if not second_success:
+            self._record_execution_failure(second["exchange"], asset, second_result)
+            await self._rollback_open_position(opened_leg["exchange"], opened_leg["obj"], asset)
+            return (
+                None,
+                results[long_exchange],
+                results[short_exchange],
+                successes[long_exchange],
+                successes[short_exchange],
+            )
+
+        self._record_execution_success(second["exchange"])
+
+        long_result = results[long_exchange]
+        short_result = results[short_exchange]
 
         return {
             "long_exchange": long_exchange,
@@ -695,7 +873,7 @@ class FundingArbitrageEngine:
             "short_result": short_result,
             "asset": asset,
             "size": position_size_usd,
-        }, long_result, short_result, long_success, short_success
+        }, long_result, short_result, successes[long_exchange], successes[short_exchange]
 
     async def _verify_open_positions(self, asset: str, exchange_names: list[str]) -> None:
         """Log best-effort position verification for exchanges that expose get_positions."""
