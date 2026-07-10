@@ -399,7 +399,6 @@ class LighterExchange(BaseExchange):
                     order_expiry=self.signer_client.DEFAULT_IOC_EXPIRY,
                     self_trade_behavior_mode=self_trade_behavior_mode,
                     self_trade_equality_mode=self_trade_equality_mode,
-                    api_key_index=CONFIG.LIGHTER_API_KEY_INDEX,
                 )
             else:
                 logger.warning("Installed Lighter SDK does not expose self-trade order fields")
@@ -410,7 +409,6 @@ class LighterExchange(BaseExchange):
                     max_slippage=max_slippage,
                     is_ask=is_ask,
                     reduce_only=reduce_only,
-                    api_key_index=CONFIG.LIGHTER_API_KEY_INDEX,
                 )
 
             tx = (created, api_resp, err)

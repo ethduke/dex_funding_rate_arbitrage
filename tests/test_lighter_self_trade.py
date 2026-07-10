@@ -139,7 +139,7 @@ class LighterSelfTradeOrderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(signer.create_order_call["order_expiry"], signer.DEFAULT_IOC_EXPIRY)
         self.assertEqual(signer.create_order_call["self_trade_behavior_mode"], 2)
         self.assertEqual(signer.create_order_call["self_trade_equality_mode"], 1)
-        self.assertEqual(signer.create_order_call["api_key_index"], 9)
+        self.assertEqual(signer.create_order_call["api_key_index"], 255)
 
     async def test_market_order_falls_back_for_legacy_sdk(self):
         lighter_module.CONFIG.LIGHTER_MAX_SLIPPAGE = 0.02
@@ -156,7 +156,7 @@ class LighterSelfTradeOrderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(signer.limited_slippage_call["max_slippage"], 0.02)
         self.assertTrue(signer.limited_slippage_call["is_ask"])
         self.assertTrue(signer.limited_slippage_call["reduce_only"])
-        self.assertEqual(signer.limited_slippage_call["api_key_index"], 4)
+        self.assertEqual(signer.limited_slippage_call["api_key_index"], 255)
 
 
 async def _async_none():
