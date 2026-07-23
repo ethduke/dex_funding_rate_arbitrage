@@ -114,6 +114,42 @@ class LighterExchange(BaseExchange):
         except (ValueError, TypeError):
             return False
 
+    async def _configured_api_key_is_maker_only(self) -> bool:
+        """Return whether the configured key cannot submit IOC market orders."""
+        auth, error = self.signer_client.create_auth_token_with_expiry(
+            api_key_index=CONFIG.LIGHTER_API_KEY_INDEX
+        )
+        if error:
+            raise ValueError(error)
+
+        response = await self.account_api.get_maker_only_api_keys(
+            authorization=auth,
+            account_index=CONFIG.LIGHTER_ACCOUNT_INDEX,
+        )
+        maker_only_indexes = getattr(response, "api_key_indexes", None) or []
+        return CONFIG.LIGHTER_API_KEY_INDEX in {
+            int(api_key_index) for api_key_index in maker_only_indexes
+        }
+
+    async def _ensure_market_order_key_compatible(self) -> bool:
+        """Disable the signer when its key is restricted to maker-only orders."""
+        try:
+            is_maker_only = await self._configured_api_key_is_maker_only()
+        except Exception as e:
+            logger.warning(f"Could not verify Lighter maker-only API key status: {e}")
+            return True
+
+        if not is_maker_only:
+            return True
+
+        logger.error(
+            "Configured Lighter API key is maker-only and cannot submit IOC market orders; "
+            "order placement has been disabled"
+        )
+        await self.signer_client.close()
+        self.signer_client = None
+        return False
+
     async def _initialize_account(self):
         """Initialize account for Lighter exchange using mainnet"""
         try:
@@ -178,7 +214,8 @@ class LighterExchange(BaseExchange):
                                 await self.signer_client.close()
                                 self.signer_client = None
                             else:
-                                logger.info("Lighter SignerClient initialized successfully")
+                                if await self._ensure_market_order_key_compatible():
+                                    logger.info("Lighter SignerClient initialized successfully")
                         except Exception as e:
                             logger.error(f"SignerClient initialization failed: {e}")
                             self.signer_client = None
