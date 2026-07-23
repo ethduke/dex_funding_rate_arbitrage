@@ -976,6 +976,67 @@ class LighterExchange(BaseExchange):
             raise ValueError(error)
         return auth
 
+    async def get_position_funding_payments(
+        self,
+        market_ids: List[int],
+        start_timestamp: Optional[int] = None,
+        end_timestamp: Optional[int] = None,
+    ) -> Optional[List[Dict]]:
+        """Fetch signed funding balance changes for one or more markets."""
+        if not market_ids:
+            return []
+
+        try:
+            auth = await self._get_auth_token()
+            unique_market_ids = list(dict.fromkeys(int(market_id) for market_id in market_ids))
+            supports_market_ids = (
+                "market_ids" in inspect.signature(self.account_api.position_funding).parameters
+            )
+            market_queries = [unique_market_ids] if supports_market_ids else [
+                [market_id] for market_id in unique_market_ids
+            ]
+            payments = []
+
+            for query_market_ids in market_queries:
+                cursor = None
+                while True:
+                    kwargs = {
+                        "account_index": self.account_index,
+                        "limit": 100,
+                        "authorization": auth,
+                        "cursor": cursor,
+                        "start_timestamp": start_timestamp,
+                        "end_timestamp": end_timestamp,
+                    }
+                    if supports_market_ids:
+                        kwargs["market_ids"] = ",".join(
+                            str(market_id) for market_id in query_market_ids
+                        )
+                    else:
+                        kwargs["market_id"] = query_market_ids[0]
+
+                    response = await self.account_api.position_funding(**kwargs)
+                    for payment in getattr(response, "position_fundings", None) or []:
+                        payments.append({
+                            "timestamp": int(self._obj_get(payment, "timestamp", 0)),
+                            "market_id": int(self._obj_get(payment, "market_id", 0)),
+                            "funding_id": int(self._obj_get(payment, "funding_id", 0)),
+                            "change": to_float(self._obj_get(payment, "change")),
+                            "discount": to_float(self._obj_get(payment, "discount")),
+                            "rate": to_float(self._obj_get(payment, "rate")),
+                            "position_size": to_float(self._obj_get(payment, "position_size")),
+                            "position_side": self._obj_get(payment, "position_side"),
+                        })
+
+                    cursor = getattr(response, "next_cursor", None)
+                    if not cursor:
+                        break
+
+            return sorted(payments, key=lambda payment: payment["timestamp"])
+        except Exception as e:
+            logger.warning(f"Failed to fetch Lighter position funding payments: {e}")
+            return None
+
     def normalize_trade(self, trade: Any, account_index: Optional[int] = None) -> Dict:
         """Normalize a Lighter trade while tolerating omitted counterparty fields."""
         account_index = account_index if account_index is not None else self.account_index

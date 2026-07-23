@@ -1240,6 +1240,16 @@ class FundingArbitrageEngine:
                 except Exception as e:
                     logger.error(f"Error processing HL queue: {e}", exc_info=True)
                     await asyncio.sleep(1)
+
+        async def poll_lighter_funding_payments():
+            while True:
+                await self._refresh_lighter_funding_payments(
+                    lighter,
+                    asset,
+                    int(trade_start_time * 1000),
+                    stats,
+                )
+                await asyncio.sleep(60)
         
         # Tasks to be cleaned up at the end
         tasks = []
@@ -1260,6 +1270,10 @@ class FundingArbitrageEngine:
             # Start the HL queue processor
             hl_processor_task = asyncio.create_task(process_hl_queue())
             tasks.append(hl_processor_task)
+
+            if "Lighter" in exchange_names and lighter:
+                lighter_funding_task = asyncio.create_task(poll_lighter_funding_payments())
+                tasks.append(lighter_funding_task)
             
             # Create polling task
             polling_task = asyncio.create_task(self._poll_funding_rates(
@@ -1305,11 +1319,14 @@ class FundingArbitrageEngine:
                     elapsed_time = timestamp - trade_start_time
                     
                     # Estimate funding payment if it's a fresh funding update (longer intervals)
-                    if timestamp - last_funding_time[exchange] > SECONDS_PER_HOUR:  # Assume hourly funding
+                    if (
+                        exchange != "Lighter"
+                        and timestamp - last_funding_time[exchange] > SECONDS_PER_HOUR
+                    ):
                         # Only add funding if this is the exchange where we have a position
                         if (exchange == long_exchange or exchange == short_exchange):
-                            # Funding rate is per 8 hours typically, so scale accordingly
-                            hourly_rate = rate / 8
+                            interval_hours = DEFAULT_FUNDING_INTERVAL_HOURS.get(exchange, 1.0)
+                            hourly_rate = rate / interval_hours
                             if exchange == long_exchange:
                                 stats["funding_payments"][exchange] -= hourly_rate * self.position_size
                             else:
@@ -1435,6 +1452,14 @@ class FundingArbitrageEngine:
                             except Exception as e:
                                 logger.error(f"Error verifying position closure: {e}", exc_info=True)
                             
+                            if "Lighter" in exchange_names and lighter:
+                                await self._refresh_lighter_funding_payments(
+                                    lighter,
+                                    asset,
+                                    int(trade_start_time * 1000),
+                                    stats,
+                                )
+
                             # Calculate P&L components
                             
                             # 1. Funding payments
@@ -1503,8 +1528,33 @@ class FundingArbitrageEngine:
                         await task
                     except asyncio.CancelledError:
                         pass
-            
-    
+
+    async def _refresh_lighter_funding_payments(
+        self,
+        lighter,
+        asset: str,
+        start_timestamp: int,
+        stats: Dict,
+    ) -> bool:
+        """Replace estimated Lighter funding PnL with actual signed payments."""
+        try:
+            market_id = await lighter._get_market_id(asset)
+            payments = await lighter.get_position_funding_payments(
+                market_ids=[market_id],
+                start_timestamp=start_timestamp,
+                end_timestamp=int(time.time() * 1000),
+            )
+            if payments is None:
+                return False
+
+            stats["funding_payments"]["Lighter"] = sum(
+                float(payment.get("change", 0)) for payment in payments
+            )
+            return True
+        except Exception as e:
+            logger.warning(f"Could not refresh Lighter funding payments for {asset}: {e}")
+            return False
+
     async def _poll_funding_rates(
         self,
         backpack,
