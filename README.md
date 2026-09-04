@@ -32,5 +32,9 @@ Run the deterministic automated tests:
 python -m unittest discover -v
 ```
 
+## Lighter SDK
+See [September 2026 migration notes](docs/lighter-sdk-september-2026.md) for the
+pinned SDK revision, upgrade command, and account-type compatibility.
+
 ## Note
 involves real money

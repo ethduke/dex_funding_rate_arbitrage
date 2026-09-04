@@ -34,7 +34,8 @@ class LighterExchange(BaseExchange):
         if use_ws:
             self.ws_client = LighterWebSocketClient(
                 order_book_ids=order_book_ids or [0, 1], 
-                account_ids=[CONFIG.LIGHTER_ACCOUNT_INDEX]
+                account_ids=[CONFIG.LIGHTER_ACCOUNT_INDEX],
+                api_url=CONFIG.LIGHTER_API_URL,
             )
         else:
             self.ws_client = None
@@ -900,37 +901,27 @@ class LighterExchange(BaseExchange):
         start_timestamp: Optional[int] = None,
         end_timestamp: Optional[int] = None,
     ) -> List[Dict]:
-        """Fetch historical mark-price candles from Lighter.
-
-        The SDK version currently installed exposes trade candles but not the
-        newer markPriceCandles endpoint, so this calls the generated API client
-        directly and normalizes the abbreviated response.
-        """
+        """Fetch SDK mark-price candles; request and output timestamps are milliseconds."""
         try:
             market_id = await self._get_market_id(symbol)
-            end_timestamp = end_timestamp or int(time.time() * 1000)
+            if end_timestamp is None:
+                end_timestamp = int(time.time() * 1000)
             if start_timestamp is None:
                 lookback_ms = self._resolution_to_ms(resolution) * max(count_back, 1)
                 start_timestamp = end_timestamp - lookback_ms
 
-            params = self.api_client.param_serialize(
-                method="GET",
-                resource_path="/api/v1/markPriceCandles",
-                query_params=[
-                    ("market_id", market_id),
-                    ("resolution", resolution),
-                    ("start_timestamp", start_timestamp),
-                    ("end_timestamp", end_timestamp),
-                    ("count_back", count_back),
-                ],
-                header_params={"Accept": "application/json"},
+            response = await lighter.CandlestickApi(self.api_client).mark_price_candles(
+                market_id=market_id,
+                resolution=resolution,
+                start_timestamp=start_timestamp,
+                end_timestamp=end_timestamp,
+                count_back=count_back,
+                _request_timeout=15,
             )
-            response = await self.api_client.call_api(*params)
-            await response.read()
-            if not 200 <= response.status <= 299:
-                raise ValueError(f"HTTP {response.status}: {response.data!r}")
+            if response.code != 200:
+                raise ValueError(f"Lighter mark-price request failed (code={response.code})")
 
-            payload = json.loads(response.data.decode("utf-8"))
+            payload = response.to_dict()
             candles = payload.get("c", []) if isinstance(payload, dict) else []
             normalized = []
             for candle in candles:
@@ -992,13 +983,14 @@ class LighterExchange(BaseExchange):
             supports_market_ids = (
                 "market_ids" in inspect.signature(self.account_api.position_funding).parameters
             )
-            market_queries = [unique_market_ids] if supports_market_ids else [
-                [market_id] for market_id in unique_market_ids
-            ]
+            # The SDK serializes lists as repeated parameters, but the endpoint
+            # documents CSV. Single-market lists avoid silently dropping a filter.
+            market_queries = [[market_id] for market_id in unique_market_ids]
             payments = []
 
             for query_market_ids in market_queries:
                 cursor = None
+                seen_cursors = set()
                 while True:
                     kwargs = {
                         "account_index": self.account_index,
@@ -1009,13 +1001,13 @@ class LighterExchange(BaseExchange):
                         "end_timestamp": end_timestamp,
                     }
                     if supports_market_ids:
-                        kwargs["market_ids"] = ",".join(
-                            str(market_id) for market_id in query_market_ids
-                        )
+                        kwargs["market_ids"] = query_market_ids
                     else:
                         kwargs["market_id"] = query_market_ids[0]
 
                     response = await self.account_api.position_funding(**kwargs)
+                    if response.code != 200:
+                        raise ValueError(f"Lighter funding request failed (code={response.code})")
                     for payment in getattr(response, "position_fundings", None) or []:
                         payments.append({
                             "timestamp": int(self._obj_get(payment, "timestamp", 0)),
@@ -1031,6 +1023,9 @@ class LighterExchange(BaseExchange):
                     cursor = getattr(response, "next_cursor", None)
                     if not cursor:
                         break
+                    if cursor in seen_cursors:
+                        raise ValueError("Lighter funding pagination repeated a cursor")
+                    seen_cursors.add(cursor)
 
             return sorted(payments, key=lambda payment: payment["timestamp"])
         except Exception as e:

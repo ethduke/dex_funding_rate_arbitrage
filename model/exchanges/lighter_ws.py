@@ -3,6 +3,8 @@ import json
 from typing import Callable, List, Dict, Optional
 from utils.logger import setup_logger
 from lighter import WsClient
+from lighter.endpoint_profiles import MAINNET
+from urllib.parse import urlsplit, urlunsplit
 from websockets.client import connect as _ws_connect_async
 
 logger = setup_logger(__name__)
@@ -29,7 +31,21 @@ class LighterWebSocketClient:
                  on_account_update: Callable = None, 
                  on_order_book_update: Callable = None, 
                  market_mapping: Dict[int, str] = None,
-                 order_book_ids: List[int] = None):
+                 order_book_ids: List[int] = None,
+                 api_url: str = MAINNET.api_url):
+
+        endpoint = urlsplit(api_url)
+        if endpoint.scheme not in ("http", "https") or not endpoint.netloc:
+            raise ValueError("Lighter API URL must be an HTTP(S) URL")
+        if endpoint.username or endpoint.password or endpoint.query or endpoint.fragment:
+            raise ValueError("Lighter API URL must not contain credentials, query, or fragment")
+        self.ws_url = urlunsplit((
+            "wss" if endpoint.scheme == "https" else "ws",
+            endpoint.netloc,
+            endpoint.path.rstrip("/") + "/stream",
+            "",
+            "",
+        ))
         
         # Provide default subscriptions to avoid "No subscriptions provided" error
         if account_ids is None:
@@ -65,6 +81,7 @@ class LighterWebSocketClient:
             # Create Lighter SDK WsClient with proper error handling
             # Use a patched client that handles app-level ping/pong and disables protocol pings
             self.ws_client = _PatchedWsClient(
+                ws_url=self.ws_url,
                 account_ids=self.account_ids,
                 order_book_ids=self.order_book_ids,
                 on_account_update=self._handle_account_update,
