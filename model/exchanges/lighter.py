@@ -4,6 +4,7 @@ import json
 import os
 import time
 import asyncio
+import ctypes
 from model.exchanges.base import BaseExchange
 from model.exchanges.lighter_ws import LighterWebSocketClient
 from model.exchanges.normalized import BalanceSnapshot, FundingRate, OrderResult, Position, to_float
@@ -31,9 +32,10 @@ class LighterExchange(BaseExchange):
 
         # Initialize WebSocket client if use_ws is True
         self.use_ws = use_ws
+        self._default_ws_markets = order_book_ids is None
         if use_ws:
             self.ws_client = LighterWebSocketClient(
-                order_book_ids=order_book_ids or [0, 1], 
+                order_book_ids=order_book_ids if order_book_ids is not None else [],
                 account_ids=[CONFIG.LIGHTER_ACCOUNT_INDEX],
                 api_url=CONFIG.LIGHTER_API_URL,
             )
@@ -64,6 +66,18 @@ class LighterExchange(BaseExchange):
         if self.use_ws and self.ws_client:
             # Ensure market mapping is loaded before initializing WebSocket
             await self._ensure_market_mapping_loaded()
+            mapping = self.get_market_mapping()
+            if not mapping:
+                logger.error("Cannot initialize Lighter WebSocket without perp metadata")
+                return False
+            if self._default_ws_markets:
+                reverse = self.get_reverse_market_mapping()
+                self.ws_client.order_book_ids = [
+                    reverse[symbol] for symbol in ("BTC", "ETH") if symbol in reverse
+                ] or list(mapping)[:2]
+            if any(mid not in mapping for mid in self.ws_client.order_book_ids):
+                logger.error("Lighter WebSocket subscription contains an unknown or non-perp market")
+                return False
             
             # Update WebSocket client with market mapping
             if hasattr(self, '_market_mapping_cache'):
@@ -357,6 +371,10 @@ class LighterExchange(BaseExchange):
             
             # Convert symbol to market_id
             market_id = await self._get_market_id(symbol)
+            # The pinned SDK still uses c_int at the native signing boundary.
+            # Reject overflow rather than letting ctypes sign a different market.
+            if not 0 <= market_id < 1 << (ctypes.sizeof(ctypes.c_int) * 8 - 1):
+                raise ValueError("Market ID exceeds the installed Lighter signer ABI; SDK update required")
             
             # Get market decimals for proper scaling
             decimals = await self._get_market_decimals(market_id)
@@ -716,7 +734,9 @@ class LighterExchange(BaseExchange):
                 if isinstance(data, dict):
                     # keys might be strings when loaded from json; coerce to int
                     self._market_mapping_cache = {int(k): v for k, v in data.items()}
-                    self._market_mapping_cache_ts = time.time()
+                    # Disk caches may belong to a different instance or predate
+                    # market_type filtering. Revalidate with this host before use.
+                    self._market_mapping_cache_ts = 0.0
                     logger.info(f"Loaded Lighter market mapping from {path} ({len(self._market_mapping_cache)} markets)")
                     return True
         except Exception as e:
@@ -724,23 +744,18 @@ class LighterExchange(BaseExchange):
         return False
 
     async def _fetch_market_info(self) -> Dict[int, str]:
-        """Dynamically fetch market information from the API"""
+        """Discover perpetual markets by explicit type, never by numeric ID range."""
         try:
-            # Create funding API instance
-            funding_api = lighter.FundingApi(self.api_client)
-            
-            # Get funding rates to discover all markets
-            funding_rates_response = await funding_api.funding_rates()
-            
-            # Extract unique market information
-            markets = {}
-            if hasattr(funding_rates_response, 'funding_rates') and funding_rates_response.funding_rates:
-                for rate in funding_rates_response.funding_rates:
-                    market_id = rate.market_id
-                    symbol = rate.symbol
-                    
-                    if market_id not in markets:
-                        markets[market_id] = symbol
+            response = await self.order_api.order_book_details(_request_timeout=15)
+            if response.code != 200:
+                raise ValueError(f"Market metadata request failed (code={response.code})")
+            markets = {
+                detail.market_id: detail.symbol
+                for detail in response.order_book_details or []
+                if detail.market_type == "perp"
+            }
+            if not markets:
+                raise ValueError("Lighter returned no perpetual market metadata")
             
             # Cache the results
             self._market_mapping_cache = markets
@@ -751,8 +766,10 @@ class LighterExchange(BaseExchange):
             
         except Exception as e:
             logger.error(f"Failed to fetch market info: {e}")
-            # Return empty dict if API call fails
-            return {}
+            # Do not leave stale instance-specific IDs available for execution.
+            self._market_mapping_cache = {}
+            self._market_mapping_cache_ts = 0.0
+            raise
 
     async def _get_symbol_by_market_id(self, market_id: int) -> str:
         """Get symbol name by market ID"""
@@ -787,13 +804,13 @@ class LighterExchange(BaseExchange):
         # As a last resort, force refresh and try again once
         await self.refresh_market_mapping(force=True)
         reverse_mapping = self.get_reverse_market_mapping()
-        mid = reverse_mapping.get(sym) or reverse_mapping.get(sym[:-4] if sym.endswith("-USD") else f"{sym}-USD")
+        mid = reverse_mapping.get(sym)
+        if mid is None:
+            mid = reverse_mapping.get(sym[:-4] if sym.endswith("-USD") else f"{sym}-USD")
         if mid is not None:
             return mid
 
-        # Default to BTC if truly unknown to avoid crashes
-        logger.warning(f"Unknown symbol '{symbol}', defaulting to BTC market (1)")
-        return 1
+        raise ValueError(f"Unknown Lighter perpetual symbol: {symbol}")
 
     async def subscribe_symbols(self, symbols: List[str]) -> bool:
         """Ensure WS is subscribed to the markets backing the provided symbols.
@@ -1157,6 +1174,8 @@ class LighterExchange(BaseExchange):
             if hasattr(response, 'order_book_details') and response.order_book_details:
                 for detail in response.order_book_details:
                     if detail.market_id == market_id:
+                        if detail.market_type != "perp":
+                            raise ValueError(f"Market {market_id} is not a perpetual market")
                         decimals = {
                             'sizeDecimal': int(detail.size_decimals),
                             'priceDecimal': int(detail.price_decimals)

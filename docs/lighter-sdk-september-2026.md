@@ -1,16 +1,17 @@
-# Lighter SDK Update: September 4, 2026
+# Lighter SDK Update: September 11, 2026
 
 ## Installation
 
 The project pins the official SDK to commit
-`fd4ee2530f78940cbed3dd80131d0fa66f74ad2a`. PyPI and this Git revision both report
+`7d27964428220696861768260d68ad5d8f94438c`. PyPI and this Git revision both report
 version `1.1.2`, but only the Git revision contains the August API models and
-order-version signer ABI. Do not rely on the version number alone.
+order-version signer ABI and September 11 signer binaries for newly assigned
+market IDs. Do not rely on the version number alone.
 
 For an existing virtual environment, force replacement of the older wheel:
 
 ```bash
-./venv/bin/python -m pip install --force-reinstall --no-deps 'lighter-sdk @ git+https://github.com/elliottech/lighter-python.git@fd4ee2530f78940cbed3dd80131d0fa66f74ad2a'
+./venv/bin/python -m pip install --force-reinstall --no-deps 'lighter-sdk @ git+https://github.com/elliottech/lighter-python.git@7d27964428220696861768260d68ad5d8f94438c'
 ./venv/bin/python -m pip check
 ./venv/bin/python -m unittest discover -v
 ```
@@ -18,6 +19,21 @@ For an existing virtual environment, force replacement of the older wheel:
 New environments can use `pip install -r requirements.txt` as usual.
 
 ## Adapter Changes
+
+- Market discovery uses `orderBookDetails` and `market_type == "perp"`.
+  IDs are preserved as Python integers, with no perp/spot assumptions based on
+  their magnitude. This adapter remains perpetual-only.
+- Unknown symbols fail closed instead of falling back to market 1. Market 0
+  remains valid after refresh. Disk-loaded mappings are revalidated against
+  the configured instance before symbol resolution.
+- Default WebSocket subscriptions resolve BTC/ETH from current metadata;
+  explicitly configured unknown or non-perp IDs are rejected at initialization.
+- The updated SDK supports the newly assigned IDs currently on testnet
+  (ETH 4095, BTC 4096, SOL 4097). Its Python native signing boundary still uses
+  `ctypes.c_int`, so orders with IDs outside the signed C-int range are rejected
+  before signing to prevent silent truncation. Full-width 64-bit metadata is
+  supported, but full-width 64-bit order signing needs a further upstream ABI
+  update. We do not change ctypes types independently of the native library.
 
 - Funding queries now pass integer lists to the SDK's `market_ids` argument.
   The pinned SDK serializes lists as repeated URL parameters, whereas the
@@ -61,7 +77,8 @@ provides the endpoint details. RHC maintenance is scheduled for September 5 at
 
 ## Sources
 
-- [Official SDK revision](https://github.com/elliottech/lighter-python/commit/fd4ee2530f78940cbed3dd80131d0fa66f74ad2a)
+- [Official SDK revision](https://github.com/elliottech/lighter-python/commit/7d27964428220696861768260d68ad5d8f94438c)
+- [Current testnet market metadata](https://testnet.zklighter.elliot.ai/api/v1/orderBookDetails)
 - [PyPI release](https://pypi.org/project/lighter-sdk/)
 - [Funding query SDK contract](https://github.com/elliottech/lighter-python/blob/fd4ee2530f78940cbed3dd80131d0fa66f74ad2a/docs/AccountApi.md#position_funding)
 - [Historical exports](https://apidocs.lighter.xyz/reference/export_historicaltrades)
