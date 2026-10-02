@@ -1,5 +1,8 @@
 # Lighter SDK Update: September 11, 2026
 
+Historical notes: the Git pin below has been superseded by the published SDK
+1.1.6. Use the [October update instructions](lighter-sdk-october-2026.md) for installation.
+
 ## Installation
 
 The project pins the official SDK to commit

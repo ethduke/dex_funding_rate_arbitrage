@@ -5,6 +5,7 @@ import os
 import time
 import asyncio
 import ctypes
+from urllib.parse import urlsplit
 from model.exchanges.base import BaseExchange
 from model.exchanges.lighter_ws import LighterWebSocketClient
 from model.exchanges.normalized import BalanceSnapshot, FundingRate, OrderResult, Position, to_float
@@ -1092,27 +1093,35 @@ class LighterExchange(BaseExchange):
         market_id: Optional[int] = None,
         limit: int = 100,
         cursor: Optional[str] = None,
+        authenticated: bool = False,
     ) -> Dict:
         """Fetch and normalize recent account trades.
 
         Lighter now retains only the last 3K trades for account-scoped queries.
-        Use get_trade_export for full history.
+        Use get_trade_export for full history. Core reads are public by default;
+        authenticated=True retains L1-based rate limits for eligible accounts.
+        RHC and unrecognized hosts retain authenticated reads.
         """
         try:
-            await self._ensure_account_initialized()
-            auth = await self._get_auth_token()
+            host = urlsplit(self.api_client.configuration.host).hostname
+            public_core = host in {"mainnet.zklighter.elliot.ai", "testnet.zklighter.elliot.ai"}
+            auth = await self._get_auth_token() if authenticated or not public_core else None
+            account_index = self.account_index if self.account_index is not None else CONFIG.LIGHTER_ACCOUNT_INDEX
             response = await self.order_api.trades(
                 sort_by="timestamp",
                 sort_dir="desc",
                 limit=min(max(limit, 1), 100),
                 authorization=auth,
-                account_index=self.account_index,
+                account_index=account_index,
                 market_id=market_id,
                 cursor=cursor,
+                _request_timeout=15,
             )
+            if response.code != 200:
+                raise ValueError(f"Lighter trades request failed (code={response.code})")
             trades = getattr(response, "trades", None) or []
             return {
-                "trades": [self.normalize_trade(trade) for trade in trades],
+                "trades": [self.normalize_trade(trade, account_index=account_index) for trade in trades],
                 "next_cursor": getattr(response, "next_cursor", None),
             }
         except Exception as e:

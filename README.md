@@ -33,8 +33,11 @@ python -m unittest discover -v
 ```
 
 ## Lighter SDK
+Current: `lighter-sdk==1.1.6`. See [October 2026 update](docs/lighter-sdk-october-2026.md)
+for deployment-safe WebSocket handover and public Core trade-history reads.
+
 See [September 2026 migration notes](docs/lighter-sdk-september-2026.md) for the
-pinned SDK revision, upgrade command, and account-type compatibility.
+earlier market-ID migration and account-type compatibility.
 
 ## Note
 involves real money
