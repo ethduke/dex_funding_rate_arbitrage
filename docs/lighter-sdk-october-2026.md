@@ -1,4 +1,43 @@
-# Lighter SDK Update: October 2, 2026
+# Lighter SDK Updates: October 2026
+
+## October 9 API Compatibility
+
+PyPI and the upstream repository still publish SDK `1.1.6` as the latest version
+as of October 9. Keep the existing exact dependency pin. Some announced API
+additions are not yet generated into the SDK, so the adapter bridges them:
+
+- `get_recent_trades()` accepts keyword-only `integrator_account_index`,
+  `order_index`, and `order_index_str`. The string filter takes precedence and
+  preserves uint64 precision. New filters use the existing SDK HTTP transport
+  and response models; ordinary requests retain the generated SDK method.
+  Account scope, pagination, timeouts, and instance-specific auth are preserved.
+  Omit the integrator filter (or use the documented `-1` default) to disable it;
+  the server validates actual integrator indexes. Zero is not an "all" filter.
+- Optionally set `LIGHTER_READ_ONLY_TOKEN` in the local environment for the
+  maker-only-key status check on either instance. Without it, signed auth is
+  unchanged. This token does not replace the trading key and is not used for
+  other private endpoints. Never add token values to tracked config files.
+- Account WebSocket callbacks ignore strictly older `transaction_time` values
+  per account, including during automatic handover. Equal values are delivered
+  because one transaction can produce distinct updates. Missing or invalid
+  timestamps retain legacy delivery and do not advance the watermark. Explicit
+  disconnect clears the watermark. This is state ordering, not event deduplication
+  or lossless history; only the existing `account_all` subscription is used.
+- Order submission results expose optional `remaining_send_tx` telemetry,
+  including zero. SDK 1.1.6 stores this unknown field in `additional_properties`.
+  Missing or invalid values become `None`. This is an advisory server snapshot,
+  not a reservation or a local rate limiter; order scheduling remains unchanged.
+
+RHC's new market IDs already use our metadata-driven discovery (`market_type`,
+not numeric ranges) and instance-specific caches. The native signer ABI still
+uses a signed C int for market indexes: out-of-range IDs are rejected before
+signing rather than truncated. No new subscriptions, deposit flows, or unused
+metadata/referral/leaderboard integrations are introduced.
+
+Reference schemas are now downloadable from
+[Core](https://apidocs.lighter.xyz/openapi/page.json) and
+[RHC](https://apidocs.rh.lighter.xyz/openapi/api.json).
+The adapter does not download or regenerate code from these schemas at runtime.
 
 ## Install
 
@@ -67,5 +106,8 @@ This update does not add automated channel monitoring.
 - [SDK 1.1.6](https://pypi.org/project/lighter-sdk/1.1.6/)
 - [SDK shutdown callback](https://github.com/elliottech/lighter-python/commit/106a5f4b2ec65f802eb558364b9eaabded320a3e)
 - [Trades endpoint](https://apidocs.lighter.xyz/reference/trades)
+- [WebSocket reference](https://apidocs.lighter.xyz/docs/websocket-reference)
+- [Core getting started](https://apidocs.lighter.xyz/docs/get-started)
+- [RHC getting started](https://apidocs.rh.lighter.xyz/docs/get-started)
 - [Core rate limits](https://apidocs.lighter.xyz/docs/rate-limits)
 - [Deposit quotes and supported chains](https://apidocs.lighter.xyz/docs/deposits-transfers-and-withdrawals)

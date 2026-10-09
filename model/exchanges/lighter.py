@@ -132,11 +132,13 @@ class LighterExchange(BaseExchange):
 
     async def _configured_api_key_is_maker_only(self) -> bool:
         """Return whether the configured key cannot submit IOC market orders."""
-        auth, error = self.signer_client.create_auth_token_with_expiry(
-            api_key_index=CONFIG.LIGHTER_API_KEY_INDEX
-        )
-        if error:
-            raise ValueError(error)
+        auth = os.environ.get("LIGHTER_READ_ONLY_TOKEN", "").strip()
+        if not auth:
+            auth, error = self.signer_client.create_auth_token_with_expiry(
+                api_key_index=CONFIG.LIGHTER_API_KEY_INDEX
+            )
+            if error:
+                raise ValueError(error)
 
         response = await self.account_api.get_maker_only_api_keys(
             authorization=auth,
@@ -152,7 +154,7 @@ class LighterExchange(BaseExchange):
         try:
             is_maker_only = await self._configured_api_key_is_maker_only()
         except Exception as e:
-            logger.warning(f"Could not verify Lighter maker-only API key status: {e}")
+            logger.warning("Could not verify Lighter maker-only API key status (%s)", type(e).__name__)
             return True
 
         if not is_maker_only:
@@ -469,10 +471,11 @@ class LighterExchange(BaseExchange):
                 )
 
             tx = (created, api_resp, err)
+            remaining_send_tx = self._remaining_send_tx(api_resp)
 
             if err:
                 logger.warning(f"Lighter market order rejected: symbol={symbol}, side={side}, error={err}")
-                return OrderResult(
+                result = OrderResult(
                     exchange="Lighter",
                     success=False,
                     asset=symbol,
@@ -482,6 +485,8 @@ class LighterExchange(BaseExchange):
                     message=str(err),
                     raw={"created": created, "api_resp": api_resp, "err": err},
                 ).to_dict()
+                result["remaining_send_tx"] = remaining_send_tx
+                return result
             tx_hash = getattr(api_resp, "tx_hash", None)
             logger.info(
                 f"Lighter market order accepted: symbol={symbol}, side={side}, "
@@ -497,6 +502,7 @@ class LighterExchange(BaseExchange):
             ).to_dict()
             result["status"] = "success"
             result["tx"] = tx
+            result["remaining_send_tx"] = remaining_send_tx
             return result
             
         except Exception as e:
@@ -1088,12 +1094,44 @@ class LighterExchange(BaseExchange):
             "is_maker_ask": is_maker_ask,
         }
 
+    @staticmethod
+    def _remaining_send_tx(response) -> Optional[int]:
+        """Read advisory quota telemetry, including unmodeled SDK response fields."""
+        if isinstance(response, dict):
+            value = response.get("remaining_send_tx")
+        else:
+            value = getattr(response, "remaining_send_tx", None)
+            if value is None:
+                value = (getattr(response, "additional_properties", None) or {}).get("remaining_send_tx")
+        return value if type(value) is int and value >= 0 else None
+
+    async def _request_filtered_trades(self, authorization, **params):
+        """Bridge documented query fields not yet exposed by SDK 1.1.6."""
+        headers = {"Accept": "application/json"}
+        if authorization is not None:
+            headers["authorization"] = authorization
+        request = self.api_client.param_serialize(
+            method="GET", resource_path="/api/v1/trades", path_params={},
+            query_params=[(key, value) for key, value in params.items() if value is not None],
+            header_params=headers, body=None, post_params=[], files={},
+            auth_settings=[], collection_formats={},
+        )
+        response = await self.api_client.call_api(*request, _request_timeout=15)
+        await response.read()
+        return self.api_client.response_deserialize(
+            response_data=response, response_types_map={"200": "Trades", "400": "ResultCode"},
+        ).data
+
     async def get_recent_trades(
         self,
         market_id: Optional[int] = None,
         limit: int = 100,
         cursor: Optional[str] = None,
         authenticated: bool = False,
+        *,
+        integrator_account_index: Optional[int] = None,
+        order_index: Optional[int] = None,
+        order_index_str: Optional[str] = None,
     ) -> Dict:
         """Fetch and normalize recent account trades.
 
@@ -1101,13 +1139,28 @@ class LighterExchange(BaseExchange):
         Use get_trade_export for full history. Core reads are public by default;
         authenticated=True retains L1-based rate limits for eligible accounts.
         RHC and unrecognized hosts retain authenticated reads.
+        order_index_str takes precedence over order_index without float conversion.
         """
         try:
+            if integrator_account_index is not None and (
+                type(integrator_account_index) is not int or not -1 <= integrator_account_index < 2**63
+            ):
+                raise ValueError("integrator_account_index must be an int64 account index or -1")
+            if order_index_str is not None:
+                if (not isinstance(order_index_str, str) or not order_index_str.isascii()
+                        or not order_index_str.isdecimal() or len(order_index_str) > 20
+                        or int(order_index_str) >= 2**64):
+                    raise ValueError("order_index_str must be a decimal uint64 string")
+                order_index = None
+            elif order_index is not None and (
+                type(order_index) is not int or not 0 <= order_index < 2**64
+            ):
+                raise ValueError("order_index must be a uint64 integer")
             host = urlsplit(self.api_client.configuration.host).hostname
             public_core = host in {"mainnet.zklighter.elliot.ai", "testnet.zklighter.elliot.ai"}
             auth = await self._get_auth_token() if authenticated or not public_core else None
             account_index = self.account_index if self.account_index is not None else CONFIG.LIGHTER_ACCOUNT_INDEX
-            response = await self.order_api.trades(
+            params = dict(
                 sort_by="timestamp",
                 sort_dir="desc",
                 limit=min(max(limit, 1), 100),
@@ -1115,8 +1168,16 @@ class LighterExchange(BaseExchange):
                 account_index=account_index,
                 market_id=market_id,
                 cursor=cursor,
-                _request_timeout=15,
             )
+            if order_index is not None:
+                params["order_index"] = order_index
+            if integrator_account_index is not None or order_index_str is not None:
+                response = await self._request_filtered_trades(
+                    **params, integrator_account_index=integrator_account_index,
+                    order_index_str=order_index_str,
+                )
+            else:
+                response = await self.order_api.trades(**params, _request_timeout=15)
             if response.code != 200:
                 raise ValueError(f"Lighter trades request failed (code={response.code})")
             trades = getattr(response, "trades", None) or []

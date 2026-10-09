@@ -74,6 +74,7 @@ class LighterWebSocketClient:
         self._connected = False
         self._ready = asyncio.Event()
         self._sessions = {}
+        self._account_transaction_times = {}
 
     async def connect(self):
         """Wait for fresh subscription snapshots, not merely a scheduled task."""
@@ -188,6 +189,7 @@ class LighterWebSocketClient:
         self._connected = False
         self._ready.clear()
         self._market_stats.clear()
+        self._account_transaction_times.clear()
 
     async def close(self):
         await self.disconnect()
@@ -224,8 +226,16 @@ class LighterWebSocketClient:
         return self.get_market_stats(market_id).get("mid_price")
 
     def _handle_account_update(self, account_id: int, account: Dict):
+        transaction_time = account.get("transaction_time")
+        timestamped = type(transaction_time) is int and transaction_time >= 0
+        key = str(account_id)
+        # Equal timestamps may carry distinct updates from the same transaction.
+        if timestamped and transaction_time < self._account_transaction_times.get(key, -1):
+            return
         try:
             self.on_account_update(account_id, account)
+            if timestamped:
+                self._account_transaction_times[key] = transaction_time
         except Exception as exc:
             logger.warning("Lighter account callback failed (%s)", type(exc).__name__)
 
