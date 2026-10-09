@@ -53,7 +53,9 @@ class LighterWebSocketClient:
                  on_order_book_update: Callable = None,
                  market_mapping: Dict[int, str] = None,
                  order_book_ids: List[int] = None,
-                 api_url: str = MAINNET.api_url):
+                 api_url: str = MAINNET.api_url,
+                 exchange_name: str = "Lighter"):
+        self.exchange_name = exchange_name
         endpoint = urlsplit(api_url)
         if endpoint.scheme not in ("http", "https") or not endpoint.netloc:
             raise ValueError("Lighter API URL must be an HTTP(S) URL")
@@ -157,10 +159,10 @@ class LighterWebSocketClient:
                     self._activate(candidate)
                     if old is not None:
                         await self._stop_session(old)
-                    logger.info("Lighter WebSocket subscriptions ready")
+                    logger.info("%s WebSocket subscriptions ready", self.exchange_name)
                     delay = 1
                     await self._wait_session(candidate)
-                    logger.info("Lighter server draining; warming replacement WebSocket")
+                    logger.info("%s server draining; warming replacement WebSocket", self.exchange_name)
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
@@ -169,7 +171,7 @@ class LighterWebSocketClient:
                         self._connected = False
                         self._ready.clear()
                         self._market_stats.clear()
-                    logger.warning("Lighter WebSocket retry in %ss (%s)", delay, type(exc).__name__)
+                    logger.warning("%s WebSocket retry in %ss (%s)", self.exchange_name, delay, type(exc).__name__)
                     await asyncio.sleep(delay)
                     delay = min(delay * 2, 30)
         finally:
@@ -210,7 +212,7 @@ class LighterWebSocketClient:
         try:
             return await self.connect()
         except Exception as exc:
-            logger.warning("Lighter resubscribe failed (%s)", type(exc).__name__)
+            logger.warning("%s resubscribe failed (%s)", self.exchange_name, type(exc).__name__)
             return False
 
     def set_market_mapping(self, market_mapping: Dict[int, str]):

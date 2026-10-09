@@ -63,6 +63,27 @@ class Config:
         if self.LIGHTER_SELF_TRADE_BEHAVIOR_MODE == 3 and self.LIGHTER_SELF_TRADE_EQUALITY_MODE == 1:
             raise ValueError("Lighter REDUCE self-trade behavior cannot use MASTER_ACCOUNT_INDEX equality")
 
+        # RHC is a separate venue: never inherit Core account indexes or secrets.
+        self.LIGHTER_RHC_API_URL = config.get("LIGHTER_RHC_API_URL", "https://api.rh.lighter.xyz")
+        account_index = config.get("LIGHTER_RHC_ACCOUNT_INDEX")
+        self.LIGHTER_RHC_ACCOUNT_INDEX = int(account_index) if account_index is not None else None
+        self.LIGHTER_RHC_API_KEY_INDEX = int(config.get("LIGHTER_RHC_API_KEY_INDEX", 4))
+        self.LIGHTER_RHC_PRIVATE_KEY = os.environ.get("LIGHTER_RHC_PRIVATE_KEY")
+        self.LIGHTER_RHC_MAX_SLIPPAGE = float(config.get("LIGHTER_RHC_MAX_SLIPPAGE", 0.01))
+        self.LIGHTER_RHC_SELF_TRADE_BEHAVIOR_MODE = int(config.get("LIGHTER_RHC_SELF_TRADE_BEHAVIOR_MODE", 0))
+        self.LIGHTER_RHC_SELF_TRADE_EQUALITY_MODE = int(config.get("LIGHTER_RHC_SELF_TRADE_EQUALITY_MODE", 0))
+        if self.LIGHTER_RHC_ACCOUNT_INDEX is not None and self.LIGHTER_RHC_ACCOUNT_INDEX < 0:
+            raise ValueError("LIGHTER_RHC_ACCOUNT_INDEX must be nonnegative")
+        if self.LIGHTER_RHC_API_KEY_INDEX not in (*range(4, 157), *range(158, 255)):
+            raise ValueError("LIGHTER_RHC_API_KEY_INDEX must be 4-156 or 158-254")
+        if not 0 <= self.LIGHTER_RHC_MAX_SLIPPAGE < 1:
+            raise ValueError("LIGHTER_RHC_MAX_SLIPPAGE must be in [0, 1)")
+        if (self.LIGHTER_RHC_SELF_TRADE_BEHAVIOR_MODE not in range(4)
+                or self.LIGHTER_RHC_SELF_TRADE_EQUALITY_MODE not in range(2)
+                or (self.LIGHTER_RHC_SELF_TRADE_BEHAVIOR_MODE == 3
+                    and self.LIGHTER_RHC_SELF_TRADE_EQUALITY_MODE == 1)):
+            raise ValueError("Invalid LighterRHC self-trade modes")
+
         # Arbitrage Engine Configuration
         self.POSITION_SIZE = float(config.get("POSITION_SIZE"))
         self.MIN_RATE_DIFFERENCE = float(config.get("MIN_RATE_DIFFERENCE"))

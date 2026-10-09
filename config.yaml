@@ -15,6 +15,14 @@ LIGHTER_ACCOUNT_INDEX: 5725
 LIGHTER_SELF_TRADE_BEHAVIOR_MODE: 0
 LIGHTER_SELF_TRADE_EQUALITY_MODE: 0
 
+# Separate Robinhood Chain venue; opt in below after configuring its own account.
+LIGHTER_RHC_API_URL: https://api.rh.lighter.xyz
+LIGHTER_RHC_ACCOUNT_INDEX: null
+LIGHTER_RHC_API_KEY_INDEX: 4
+LIGHTER_RHC_MAX_SLIPPAGE: 0.01
+LIGHTER_RHC_SELF_TRADE_BEHAVIOR_MODE: 0
+LIGHTER_RHC_SELF_TRADE_EQUALITY_MODE: 0
+
 LOG_FILE_PATH: logs/arbitrage.log
 
 # Arbitrage Engine Configuration
@@ -30,6 +38,9 @@ EXCHANGES:
     - Lighter
     - Hyperliquid
     - TradeXYZ
+    # - LighterRHC
   COMPARISON_PAIRS:
     - [Lighter, Hyperliquid]
     - [Lighter, TradeXYZ]
+    # - [Lighter, LighterRHC]
+    # - [LighterRHC, TradeXYZ]

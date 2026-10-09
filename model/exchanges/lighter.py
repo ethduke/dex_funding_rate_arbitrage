@@ -5,6 +5,7 @@ import os
 import time
 import asyncio
 import ctypes
+from weakref import WeakValueDictionary
 from urllib.parse import urlsplit
 from model.exchanges.base import BaseExchange
 from model.exchanges.lighter_ws import LighterWebSocketClient
@@ -14,6 +15,7 @@ from utils.config import CONFIG
 from utils.logger import setup_logger
 from lighter import SignerClient
 from lighter.nonce_manager import NonceManagerType
+from lighter.endpoint_profiles import ENDPOINT_PROFILES, MAINNET
 from datetime import datetime
 
 logger = setup_logger(__name__)
@@ -21,12 +23,28 @@ logger = setup_logger(__name__)
 MARKET_METADATA_TTL_SECONDS = 15 * 60
 
 class LighterExchange(BaseExchange):
+    exchange_name = "Lighter"
+    config_prefix = "LIGHTER"
+    default_api_url = MAINNET.api_url
+    collateral_asset = "USDC"
+    market_mapping_path = "data/lighter_markets.json"
+    _signer_owners = WeakValueDictionary()
+
+    def _config(self, suffix, default=None):
+        return CONFIG.get(f"{self.config_prefix}_{suffix}", default)
+
+    def _account_index(self):
+        account_index = self._config("ACCOUNT_INDEX")
+        if type(account_index) is not int or account_index < 0:
+            raise ValueError(f"{self.config_prefix}_ACCOUNT_INDEX must be configured for private account operations")
+        return account_index
+
     def __init__(self, use_ws: bool = False, order_book_ids: List[int] = None):
         super().__init__()
         
         # Initialize API client
         self.api_client = lighter.ApiClient(
-            configuration=lighter.Configuration(host=CONFIG.LIGHTER_API_URL)
+            configuration=lighter.Configuration(host=self._config("API_URL", self.default_api_url))
         )
         self.account_api = lighter.AccountApi(self.api_client)
         self.order_api = lighter.OrderApi(self.api_client)
@@ -37,8 +55,9 @@ class LighterExchange(BaseExchange):
         if use_ws:
             self.ws_client = LighterWebSocketClient(
                 order_book_ids=order_book_ids if order_book_ids is not None else [],
-                account_ids=[CONFIG.LIGHTER_ACCOUNT_INDEX],
-                api_url=CONFIG.LIGHTER_API_URL,
+                account_ids=[self._account_index()] if self._config("ACCOUNT_INDEX") is not None else [],
+                api_url=self.api_client.configuration.host,
+                exchange_name=self.exchange_name,
             )
         else:
             self.ws_client = None
@@ -132,20 +151,20 @@ class LighterExchange(BaseExchange):
 
     async def _configured_api_key_is_maker_only(self) -> bool:
         """Return whether the configured key cannot submit IOC market orders."""
-        auth = os.environ.get("LIGHTER_READ_ONLY_TOKEN", "").strip()
+        auth = os.environ.get(f"{self.config_prefix}_READ_ONLY_TOKEN", "").strip()
         if not auth:
             auth, error = self.signer_client.create_auth_token_with_expiry(
-                api_key_index=CONFIG.LIGHTER_API_KEY_INDEX
+                api_key_index=self._config("API_KEY_INDEX")
             )
             if error:
                 raise ValueError(error)
 
         response = await self.account_api.get_maker_only_api_keys(
             authorization=auth,
-            account_index=CONFIG.LIGHTER_ACCOUNT_INDEX,
+            account_index=self._account_index(),
         )
         maker_only_indexes = getattr(response, "api_key_indexes", None) or []
-        return CONFIG.LIGHTER_API_KEY_INDEX in {
+        return self._config("API_KEY_INDEX") in {
             int(api_key_index) for api_key_index in maker_only_indexes
         }
 
@@ -169,17 +188,17 @@ class LighterExchange(BaseExchange):
         return False
 
     async def _initialize_account(self):
-        """Initialize account for Lighter exchange using mainnet"""
+        """Initialize only this instance's account and signer."""
         try:
             # Get configuration
-            BASE_URL = CONFIG.LIGHTER_API_URL
-            API_KEY_INDEX = CONFIG.LIGHTER_API_KEY_INDEX
+            BASE_URL = self.api_client.configuration.host.rstrip("/")
+            API_KEY_INDEX = self._config("API_KEY_INDEX")
             
-            logger.info(f"Initializing Lighter for mainnet: {BASE_URL}")
+            logger.info(f"Initializing {self.exchange_name}: {BASE_URL}")
             logger.info(f"API Key Index: {API_KEY_INDEX}")
 
             # Use the account index from config directly
-            self.account_index = CONFIG.LIGHTER_ACCOUNT_INDEX
+            self.account_index = self._account_index()
             logger.info(f"Using configured account index: {self.account_index}")
             
             # Get account details using the account index
@@ -205,7 +224,7 @@ class LighterExchange(BaseExchange):
             # Note: This requires private key configuration
             try:
                 # Get private key from environment (you'll need to set this)
-                private_key = CONFIG.get('LIGHTER_PRIVATE_KEY')
+                private_key = self._config("PRIVATE_KEY")
                 if private_key:                    
                     # Validate private key format
                     if not self._is_valid_private_key(private_key):
@@ -213,41 +232,50 @@ class LighterExchange(BaseExchange):
                         self.signer_client = None
                     else:
                         try:
+                            profile = next((p for p in ENDPOINT_PROFILES.values() if p.api_url == BASE_URL), None)
+                            if profile is None:
+                                raise ValueError("No trusted signing chain configured for this Lighter endpoint")
+                            # The native SDK keys clients by (account, API key), not chain.
+                            identity = (self.account_index, API_KEY_INDEX)
+                            owner = self._signer_owners.get(identity)
+                            if owner is not None and owner is not self and owner.signer_client is not None:
+                                raise ValueError("Lighter signer account/key index collision; use a different API key index per instance")
                             # Use the private key directly (SignerClient expects api_private_keys as dict)
                             # SDK v1.0+ uses api_private_keys: Dict[int, str] format
                             self.signer_client = SignerClient(
-                                url=CONFIG.LIGHTER_API_URL,
-                                account_index=CONFIG.LIGHTER_ACCOUNT_INDEX,
-                                api_private_keys={CONFIG.LIGHTER_API_KEY_INDEX: private_key},
+                                url=BASE_URL,
+                                chain_id=profile.chain_id,
+                                account_index=self.account_index,
+                                api_private_keys={API_KEY_INDEX: private_key},
                                 nonce_management_type=NonceManagerType.OPTIMISTIC
                             )
+                            self._signer_owners[identity] = self
                             signer_error = self.signer_client.check_client()
                             if signer_error:
                                 logger.error(
-                                    "Lighter SignerClient key check failed for "
-                                    f"account_index={CONFIG.LIGHTER_ACCOUNT_INDEX}, "
-                                    f"api_key_index={CONFIG.LIGHTER_API_KEY_INDEX}"
+                                    f"{self.exchange_name} SignerClient key check failed for "
+                                    f"account_index={self.account_index}, api_key_index={API_KEY_INDEX}"
                                 )
                                 logger.debug(f"Lighter SignerClient key check detail: {signer_error}")
                                 await self.signer_client.close()
                                 self.signer_client = None
                             else:
                                 if await self._ensure_market_order_key_compatible():
-                                    logger.info("Lighter SignerClient initialized successfully")
+                                    logger.info("%s SignerClient initialized successfully", self.exchange_name)
                         except Exception as e:
                             logger.error(f"SignerClient initialization failed: {e}")
                             self.signer_client = None
                 else:
-                    logger.warning("LIGHTER_PRIVATE_KEY not configured - order placement will be disabled")
+                    logger.warning("%s_PRIVATE_KEY not configured - order placement will be disabled", self.config_prefix)
                     self.signer_client = None
             except Exception as e:
                 logger.warning(f"Could not initialize SignerClient: {e} - order placement will be disabled")
                 self.signer_client = None
             
-            logger.info("Lighter initialization successful!")
+            logger.info("%s account initialization complete", self.exchange_name)
 
         except Exception as e:
-            logger.error(f"Failed to initialize Lighter account: {e}")
+            logger.error("Failed to initialize %s account: %s", self.exchange_name, e)
             raise
 
     async def get_funding_rates(self) -> Dict:
@@ -278,7 +306,7 @@ class LighterExchange(BaseExchange):
                     except Exception as e:
                         logger.error(f"Error processing funding rate for market {rate.market_id}: {e}")
             
-            logger.info(f"Retrieved funding rates for {len(result)} markets")
+            logger.info("Retrieved %s funding rates from %s", len(result), self.exchange_name)
             return result
             
         except Exception as e:
@@ -301,7 +329,7 @@ class LighterExchange(BaseExchange):
                 try:
                     result[symbol] = FundingRate(
                         asset=symbol,
-                        exchange="Lighter",
+                        exchange=self.exchange_name,
                         rate=to_float(data.get("rate")),
                         next_funding_time=data.get("next_funding_time", 0),
                         mark_price=to_float(data.get("mark_price")),
@@ -333,7 +361,7 @@ class LighterExchange(BaseExchange):
                         size = to_float(position.position)
                         normalized = Position(
                             asset=position.symbol,
-                            exchange="Lighter",
+                            exchange=self.exchange_name,
                             symbol=position.symbol,
                             size=size,
                             side="long" if size > 0 else "short",
@@ -364,7 +392,7 @@ class LighterExchange(BaseExchange):
             
             if not self.signer_client:
                 return OrderResult(
-                    exchange="Lighter",
+                    exchange=self.exchange_name,
                     success=False,
                     asset=symbol,
                     side=side,
@@ -389,7 +417,7 @@ class LighterExchange(BaseExchange):
             if not estimated_price or estimated_price <= 0:
                 logger.warning(f"Could not estimate price for {symbol}; aborting order placement")
                 return OrderResult(
-                    exchange="Lighter",
+                    exchange=self.exchange_name,
                     success=False,
                     asset=symbol,
                     side=side,
@@ -407,7 +435,7 @@ class LighterExchange(BaseExchange):
                 base_amount = int(quantity * (10 ** size_decimal))
             else:
                 return OrderResult(
-                    exchange="Lighter",
+                    exchange=self.exchange_name,
                     success=False,
                     asset=symbol,
                     side=side,
@@ -423,9 +451,9 @@ class LighterExchange(BaseExchange):
             is_ask = side.upper() == "SELL"
             
             # Use SDK helper to constrain execution by slippage instead of arbitrary bounds
-            max_slippage = float(CONFIG.get("LIGHTER_MAX_SLIPPAGE", 0.01))
-            self_trade_behavior_mode = CONFIG.LIGHTER_SELF_TRADE_BEHAVIOR_MODE
-            self_trade_equality_mode = CONFIG.LIGHTER_SELF_TRADE_EQUALITY_MODE
+            max_slippage = float(self._config("MAX_SLIPPAGE", 0.01))
+            self_trade_behavior_mode = self._config("SELF_TRADE_BEHAVIOR_MODE", 0)
+            self_trade_equality_mode = self._config("SELF_TRADE_EQUALITY_MODE", 0)
 
             # Log order parameters for debugging
             logger.debug(
@@ -474,9 +502,9 @@ class LighterExchange(BaseExchange):
             remaining_send_tx = self._remaining_send_tx(api_resp)
 
             if err:
-                logger.warning(f"Lighter market order rejected: symbol={symbol}, side={side}, error={err}")
+                logger.warning(f"{self.exchange_name} market order rejected: symbol={symbol}, side={side}, error={err}")
                 result = OrderResult(
-                    exchange="Lighter",
+                    exchange=self.exchange_name,
                     success=False,
                     asset=symbol,
                     side=side,
@@ -489,11 +517,11 @@ class LighterExchange(BaseExchange):
                 return result
             tx_hash = getattr(api_resp, "tx_hash", None)
             logger.info(
-                f"Lighter market order accepted: symbol={symbol}, side={side}, "
+                f"{self.exchange_name} market order accepted: symbol={symbol}, side={side}, "
                 f"base_amount={base_amount}, reduce_only={reduce_only}, tx_hash={tx_hash}"
             )
             result = OrderResult(
-                exchange="Lighter",
+                exchange=self.exchange_name,
                 success=True,
                 asset=symbol,
                 side=side,
@@ -508,7 +536,7 @@ class LighterExchange(BaseExchange):
         except Exception as e:
             logger.error(f"Failed to place market order: {e}")
             return OrderResult(
-                exchange="Lighter",
+                exchange=self.exchange_name,
                 success=False,
                 asset=symbol,
                 side=side,
@@ -647,6 +675,7 @@ class LighterExchange(BaseExchange):
         try:
             if hasattr(self, 'signer_client') and self.signer_client:
                 await self.signer_client.close()
+                self.signer_client = None
             if hasattr(self, 'api_client') and self.api_client:
                 await self.api_client.close()
             if self.ws_client:
@@ -720,8 +749,9 @@ class LighterExchange(BaseExchange):
         mapping = self._get_cached_market_mapping()
         return {symbol.upper(): mid for mid, symbol in mapping.items()}
 
-    def save_market_mapping(self, path: str = "data/lighter_markets.json") -> bool:
+    def save_market_mapping(self, path: Optional[str] = None) -> bool:
         """Persist current market mapping to disk for warm start."""
+        path = path or self.market_mapping_path
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, "w") as f:
@@ -732,8 +762,9 @@ class LighterExchange(BaseExchange):
             logger.warning(f"Failed to save market mapping to {path}: {e}")
             return False
 
-    def load_market_mapping(self, path: str = "data/lighter_markets.json") -> bool:
+    def load_market_mapping(self, path: Optional[str] = None) -> bool:
         """Load market mapping from disk if available (does not call API)."""
+        path = path or self.market_mapping_path
         try:
             if os.path.exists(path):
                 with open(path, "r") as f:
@@ -768,7 +799,7 @@ class LighterExchange(BaseExchange):
             self._market_mapping_cache = markets
             self._market_mapping_cache_ts = time.time()
             
-            logger.info(f"Discovered {len(markets)} markets from Lighter API")
+            logger.info("Discovered %s markets from %s API", len(markets), self.exchange_name)
             return markets
             
         except Exception as e:
@@ -985,7 +1016,7 @@ class LighterExchange(BaseExchange):
             raise ValueError("SignerClient not initialized. Cannot create auth token.")
 
         auth, error = self.signer_client.create_auth_token_with_expiry(
-            api_key_index=CONFIG.LIGHTER_API_KEY_INDEX
+            api_key_index=self._config("API_KEY_INDEX")
         )
         if error:
             raise ValueError(error)
@@ -1159,7 +1190,7 @@ class LighterExchange(BaseExchange):
             host = urlsplit(self.api_client.configuration.host).hostname
             public_core = host in {"mainnet.zklighter.elliot.ai", "testnet.zklighter.elliot.ai"}
             auth = await self._get_auth_token() if authenticated or not public_core else None
-            account_index = self.account_index if self.account_index is not None else CONFIG.LIGHTER_ACCOUNT_INDEX
+            account_index = self.account_index if self.account_index is not None else self._account_index()
             params = dict(
                 sort_by="timestamp",
                 sort_dir="desc",
@@ -1310,7 +1341,7 @@ class LighterExchange(BaseExchange):
                     )
                 )
                 balance_snapshot = BalanceSnapshot(
-                    exchange="Lighter",
+                    exchange=self.exchange_name,
                     available_usd=free_collateral,
                     total_usd=float(account.total_asset_value) if hasattr(account, 'total_asset_value') else 0.0,
                     account_id=self.account_index,
@@ -1318,6 +1349,7 @@ class LighterExchange(BaseExchange):
                 )
                 balance_info = balance_snapshot.to_dict()
                 balance_info.update({
+                    'collateral_asset': self.collateral_asset,
                     'account_index': self.account_index,
                     'account_type': account.account_type,
                     'collateral': float(account.collateral) if hasattr(account, 'collateral') else 0.0,
@@ -1334,7 +1366,7 @@ class LighterExchange(BaseExchange):
                         size = to_float(position.position)
                         balance_info['positions'].append(Position(
                             asset=position.symbol,
-                            exchange="Lighter",
+                            exchange=self.exchange_name,
                             symbol=position.symbol,
                             size=size,
                             side='long' if size > 0 else 'short',

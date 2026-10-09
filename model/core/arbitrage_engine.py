@@ -9,6 +9,7 @@ from utils.logger import setup_logger
 from model.exchanges.backpack import BackpackExchange
 from model.exchanges.hyperliquid import HyperliquidExchange
 from model.exchanges.lighter import LighterExchange
+from model.exchanges.lighter_rhc import LighterRHCExchange
 from model.exchanges.tradexyz import TradeXYZExchange
 from model.exchanges.base import BaseExchange
 from utils.config import CONFIG
@@ -19,10 +20,12 @@ logger = setup_logger(__name__)
 SECONDS_PER_HOUR = 3600
 BLOCKED_MARKET_TTL_SECONDS = 30 * 60
 EXECUTION_FAILURE_COOLDOWN_SECONDS = 10 * 60
+LIGHTER_EXCHANGES = ("Lighter", "LighterRHC")
 DEFAULT_FUNDING_INTERVAL_HOURS = {
     "Backpack": 8.0,
     "Hyperliquid": 1.0,
     "Lighter": 1.0,
+    "LighterRHC": 1.0,
     "TradeXYZ": 1.0,
 }
 
@@ -30,6 +33,7 @@ EXCHANGE_CLASSES = {
     "Backpack": BackpackExchange,
     "Hyperliquid": HyperliquidExchange,
     "Lighter": LighterExchange,
+    "LighterRHC": LighterRHCExchange,
     "TradeXYZ": TradeXYZExchange,
 }
 
@@ -37,7 +41,7 @@ EXCHANGE_CLASSES = {
 def resolve_exchange_classes(exchange_names: Optional[List[str]]) -> List[Type[BaseExchange]]:
     """Resolve configured exchange names to exchange classes."""
     if not exchange_names:
-        return list(EXCHANGE_CLASSES.values())
+        return [cls for name, cls in EXCHANGE_CLASSES.items() if name != "LighterRHC"]
 
     unknown = [name for name in exchange_names if name not in EXCHANGE_CLASSES]
     if unknown:
@@ -118,7 +122,7 @@ class FundingArbitrageEngine:
             logger.info(f"Initializing {exchange_name} exchange...")
             try:
                 # Initialize Backpack and Lighter with WebSocket support if enabled
-                if exchange_name == "Backpack" or exchange_name == "Lighter":
+                if exchange_name == "Backpack" or exchange_name in LIGHTER_EXCHANGES:
                     self.exchanges[exchange_name] = exchange_class(use_ws=self.use_ws)
                     logger.info(f"Successfully initialized {exchange_name} exchange with WebSocket={self.use_ws}")
                 else:
@@ -148,25 +152,32 @@ class FundingArbitrageEngine:
                     connected = await backpack.initialize_ws()
                     logger.info(f"Backpack WebSocket connected: {connected}")
                 
-                lighter = self.exchanges.get("Lighter")
-                if lighter:
-                    logger.info("Initializing Lighter WebSocket connection...")
-                    connected = await lighter.initialize_ws()
-                    logger.info(f"Lighter WebSocket connected: {connected}")
+                for name in LIGHTER_EXCHANGES:
+                    lighter = self.exchanges.get(name)
+                    if lighter:
+                        logger.info("Initializing %s WebSocket connection...", name)
+                        try:
+                            connected = await lighter.initialize_ws()
+                        except Exception as exc:
+                            connected = False
+                            logger.warning("%s WebSocket unavailable (%s); using REST polling", name, type(exc).__name__)
+                        logger.info("%s WebSocket connected: %s", name, connected)
             
             # Initialize account credentials for exchanges that need it
-            lighter = self.exchanges.get("Lighter")
-            if lighter:
-                logger.info("Initializing Lighter account credentials...")
+            for name in LIGHTER_EXCHANGES:
+                lighter = self.exchanges.get(name)
+                if not lighter:
+                    continue
+                logger.info("Initializing %s account credentials...", name)
                 try:
                     await lighter._ensure_account_initialized()
                     if lighter.signer_client:
-                        logger.info("Lighter SignerClient initialized successfully")
+                        logger.info("%s SignerClient initialized successfully", name)
                     else:
-                        logger.warning("Lighter SignerClient not available - order placement will be disabled")
+                        logger.warning("%s SignerClient not available - order placement will be disabled", name)
                 except Exception as e:
-                    logger.error(f"Failed to initialize Lighter account: {e}")
-                    logger.warning("Lighter order placement will be disabled")
+                    logger.error("Failed to initialize %s account: %s", name, e)
+                    logger.warning("%s order placement will be disabled", name)
             
             # Schedule initial check after a short delay
             logger.debug("Scheduling initial check after 5 seconds")
@@ -195,10 +206,11 @@ class FundingArbitrageEngine:
                     logger.info("Closing Backpack WebSocket connection...")
                     await backpack.close_ws()
                 
-                lighter = self.exchanges.get("Lighter")
-                if lighter:
-                    logger.info("Closing Lighter WebSocket connection...")
-                    await lighter.close_ws()
+                for name in LIGHTER_EXCHANGES:
+                    lighter = self.exchanges.get(name)
+                    if lighter:
+                        logger.info("Closing %s WebSocket connection...", name)
+                        await lighter.close_ws()
             
             # Cancel periodic check task if it exists
             if self.check_task:
@@ -470,11 +482,12 @@ class FundingArbitrageEngine:
                     available = exchange.get_available_usd()
                     balance_status[exchange_name] = available >= self.position_size
                     logger.info(f"TradeXYZ balance: ${available:.2f} (required: ${self.position_size})")
-                elif exchange_name == "Lighter":
+                elif exchange_name in LIGHTER_EXCHANGES:
                     balance = await exchange.get_real_balance()
                     free_collateral = float(balance.get("free_collateral", 0))
                     balance_status[exchange_name] = free_collateral >= self.position_size
-                    logger.info(f"Lighter balance: ${free_collateral:.2f} (required: ${self.position_size})")
+                    logger.info("%s balance: %.2f %s (required: $%.2f)", exchange_name,
+                                free_collateral, balance.get("collateral_asset", "USD"), self.position_size)
             except Exception as e:
                 logger.warning(f"Failed to check balance for {exchange_name}: {e}")
                 balance_status[exchange_name] = False
@@ -517,10 +530,9 @@ class FundingArbitrageEngine:
                 for exchange_name, exchange in self.exchanges.items():
                     try:
                         # Handle async vs sync get_funding_rates methods
-                        if exchange_name == "Lighter":
-                            data = await exchange.get_funding_rates()
-                        else:
-                            data = exchange.get_funding_rates()
+                        data = exchange.get_funding_rates()
+                        if hasattr(data, "__await__"):
+                            data = await data
                         
                         # Process rates using exchange's method 
                         # (all exchange classes must implement process_funding_rates)
@@ -691,7 +703,8 @@ class FundingArbitrageEngine:
             
             # Create the monitoring task
             monitor_task = asyncio.create_task(
-                self.monitor_funding_rates(backpack, hyperliquid, lighter, opportunity, tradexyz=tradexyz)
+                self.monitor_funding_rates(backpack, hyperliquid, lighter, opportunity, tradexyz=tradexyz,
+                                           lighter_rhc=self.exchanges.get("LighterRHC"))
             )
             
             # Track the position and its monitor
@@ -946,15 +959,14 @@ class FundingArbitrageEngine:
         try:
             backpack = self.exchanges.get("Backpack")
             hyperliquid = self.exchanges.get("Hyperliquid")
-            lighter = self.exchanges.get("Lighter")
             
             # Check available balances on both exchanges first
             logger.info("Checking available balances on both exchanges...")
 
             async def _has_balance(exchange_name: str) -> bool:
                 try:
-                    if exchange_name == "Lighter":
-                        bal = await lighter.get_real_balance()
+                    if exchange_name in LIGHTER_EXCHANGES:
+                        bal = await self.exchanges[exchange_name].get_real_balance()
                         if isinstance(bal, dict) and "error" not in bal:
                             free = float(bal.get("free_collateral", 0))
                             total = float(bal.get("total_asset_value", 0))
@@ -1004,23 +1016,26 @@ class FundingArbitrageEngine:
             logger.info(f"TRADE PLAN: LONG on {long_exchange}, SHORT on {short_exchange} for {asset}")
             
             # Check if Lighter has order placement capability
-            if "Lighter" in [long_exchange, short_exchange]:
+            for name in [long_exchange, short_exchange]:
+                if name not in LIGHTER_EXCHANGES:
+                    continue
+                lighter = self.exchanges.get(name)
                 if not lighter:
-                    logger.warning("Lighter exchange not available - skipping this opportunity")
+                    logger.warning("%s exchange not available - skipping this opportunity", name)
                     return None
                 
                 # Ensure account is initialized before checking SignerClient
                 try:
                     await lighter._ensure_account_initialized()
                 except Exception as e:
-                    logger.warning(f"Failed to initialize Lighter account: {e} - skipping this opportunity")
+                    logger.warning("Failed to initialize %s account: %s - skipping this opportunity", name, e)
                     return None
                 
                 if not hasattr(lighter, 'signer_client') or not lighter.signer_client:
-                    logger.warning("Lighter order placement not available (SignerClient not initialized) - skipping this opportunity")
+                    logger.warning("%s order placement not available (SignerClient not initialized) - skipping this opportunity", name)
                     return None
                 else:
-                    logger.info("Lighter order placement available - will attempt orders")
+                    logger.info("%s order placement available - will attempt orders", name)
             
             result, long_result, short_result, long_success, short_success = await self._execute_exchange_pair(
                 asset,
@@ -1094,7 +1109,7 @@ class FundingArbitrageEngine:
         except Exception as e:
             logger.error(f"Error cleaning up positions: {str(e)}", exc_info=True)
     
-    async def monitor_funding_rates(self, backpack, hyperliquid, lighter, opportunity, tradexyz=None):
+    async def monitor_funding_rates(self, backpack, hyperliquid, lighter, opportunity, tradexyz=None, lighter_rhc=None):
         """Monitor funding rates and close positions when exit criteria are met."""
         logger.info(f"Starting funding rate monitor for {opportunity['asset']}...")
         asset = opportunity['asset']
@@ -1104,6 +1119,15 @@ class FundingArbitrageEngine:
         long_exchange = opportunity['long_exchange']
         short_exchange = opportunity['short_exchange']
         exchange_names = [long_exchange, short_exchange]
+        exchange_objs = {
+            "Backpack": backpack, "Hyperliquid": hyperliquid, "Lighter": lighter,
+            "TradeXYZ": tradexyz, "LighterRHC": lighter_rhc,
+        }
+        lighter_instances = {name: exchange_objs[name] for name in exchange_names
+                             if name in LIGHTER_EXCHANGES and exchange_objs[name] is not None}
+        backpack = backpack if "Backpack" in exchange_names else None
+        hyperliquid = hyperliquid if "Hyperliquid" in exchange_names else None
+        tradexyz = tradexyz if "TradeXYZ" in exchange_names else None
         
         # Initial rates from the opportunity
         initial_rates = {
@@ -1176,6 +1200,11 @@ class FundingArbitrageEngine:
                 if pos.get("asset") == asset:
                     stats["entry_prices"]["TradeXYZ"] = float(pos.get("entry_price", 0))
                     break
+            for name, instance in lighter_instances.items():
+                for pos in await instance.get_positions():
+                    if pos.get("asset", pos.get("symbol")) == asset:
+                        stats["entry_prices"][name] = float(pos.get("entry_price", 0))
+                        break
                     
         except Exception as e:
             logger.error(f"Error getting entry prices: {e}")
@@ -1241,13 +1270,14 @@ class FundingArbitrageEngine:
                     logger.error(f"Error processing HL queue: {e}", exc_info=True)
                     await asyncio.sleep(1)
 
-        async def poll_lighter_funding_payments():
+        async def poll_lighter_funding_payments(name, instance):
             while True:
                 await self._refresh_lighter_funding_payments(
-                    lighter,
+                    instance,
                     asset,
                     int(trade_start_time * 1000),
                     stats,
+                    exchange_name=name,
                 )
                 await asyncio.sleep(60)
         
@@ -1271,8 +1301,8 @@ class FundingArbitrageEngine:
             hl_processor_task = asyncio.create_task(process_hl_queue())
             tasks.append(hl_processor_task)
 
-            if "Lighter" in exchange_names and lighter:
-                lighter_funding_task = asyncio.create_task(poll_lighter_funding_payments())
+            for name, instance in lighter_instances.items():
+                lighter_funding_task = asyncio.create_task(poll_lighter_funding_payments(name, instance))
                 tasks.append(lighter_funding_task)
             
             # Create polling task
@@ -1284,6 +1314,7 @@ class FundingArbitrageEngine:
                 funding_rate_queue,
                 tradexyz=tradexyz,
                 monitored_exchanges=set(exchange_names),
+                lighter_rhc=lighter_rhc,
             ))
             tasks.append(polling_task)
             
@@ -1320,7 +1351,7 @@ class FundingArbitrageEngine:
                     
                     # Estimate funding payment if it's a fresh funding update (longer intervals)
                     if (
-                        exchange != "Lighter"
+                        exchange not in LIGHTER_EXCHANGES
                         and timestamp - last_funding_time[exchange] > SECONDS_PER_HOUR
                     ):
                         # Only add funding if this is the exchange where we have a position
@@ -1366,12 +1397,6 @@ class FundingArbitrageEngine:
                             # Close positions on both exchanges
                             logger.info(f"Closing positions on both exchanges")
 
-                            exchange_objs = {
-                                "Backpack": backpack,
-                                "Hyperliquid": hyperliquid,
-                                "Lighter": lighter,
-                                "TradeXYZ": tradexyz,
-                            }
                             
                             # Close positions using the shared helper method
                             long_close_success = await self._close_exchange_position(
@@ -1424,15 +1449,15 @@ class FundingArbitrageEngine:
 
                                 # Check Lighter positions
                                 lt_position_closed = True
-                                if lighter:
-                                    lt_positions = await lighter.get_positions()
+                                for name, instance in lighter_instances.items():
+                                    lt_positions = await instance.get_positions()
                                     if isinstance(lt_positions, list):
                                         for pos in lt_positions:
                                             if pos.get("symbol") == asset and float(pos.get("size", "0")) != 0:
                                                 lt_position_closed = False
-                                                logger.warning(f"Lighter position still open: {pos}")
-                                                logger.info("Making one final attempt to close Lighter position")
-                                                await lighter.close_position(asset)
+                                                logger.warning("%s position still open for %s", name, asset)
+                                                logger.info("Making one final attempt to close %s position", name)
+                                                await instance.close_position(asset)
 
                                 tx_position_closed = True
                                 if tradexyz:
@@ -1452,12 +1477,13 @@ class FundingArbitrageEngine:
                             except Exception as e:
                                 logger.error(f"Error verifying position closure: {e}", exc_info=True)
                             
-                            if "Lighter" in exchange_names and lighter:
+                            for name, instance in lighter_instances.items():
                                 await self._refresh_lighter_funding_payments(
-                                    lighter,
+                                    instance,
                                     asset,
                                     int(trade_start_time * 1000),
                                     stats,
+                                    exchange_name=name,
                                 )
 
                             # Calculate P&L components
@@ -1467,30 +1493,12 @@ class FundingArbitrageEngine:
                             
                             # 2. Entry/Exit price difference (for position_size position)
                             try:
-                                if long_exchange == "Backpack" and short_exchange == "Hyperliquid":
-                                    # Long BP, Short HL
-                                    long_price_pnl = 0
-                                    short_price_pnl = 0
-                                    
-                                    if stats["entry_prices"]["Backpack"] and stats["exit_prices"]["Backpack"]:
-                                        long_price_pnl = (stats["exit_prices"]["Backpack"] - stats["entry_prices"]["Backpack"]) * self.position_size / stats["entry_prices"]["Backpack"]
-                                    
-                                    if stats["entry_prices"]["Hyperliquid"] and stats["exit_prices"]["Hyperliquid"]:
-                                        short_price_pnl = (stats["entry_prices"]["Hyperliquid"] - stats["exit_prices"]["Hyperliquid"]) * self.position_size / stats["entry_prices"]["Hyperliquid"]
-                                    
-                                    stats["price_pnl"] = long_price_pnl + short_price_pnl
-                                else:
-                                    # Long HL, Short BP
-                                    long_price_pnl = 0
-                                    short_price_pnl = 0
-                                    
-                                    if stats["entry_prices"]["Hyperliquid"] and stats["exit_prices"]["Hyperliquid"]:
-                                        long_price_pnl = (stats["exit_prices"]["Hyperliquid"] - stats["entry_prices"]["Hyperliquid"]) * self.position_size / stats["entry_prices"]["Hyperliquid"]
-                                    
-                                    if stats["entry_prices"]["Backpack"] and stats["exit_prices"]["Backpack"]:
-                                        short_price_pnl = (stats["entry_prices"]["Backpack"] - stats["exit_prices"]["Backpack"]) * self.position_size / stats["entry_prices"]["Backpack"]
-                                    
-                                    stats["price_pnl"] = long_price_pnl + short_price_pnl
+                                stats["price_pnl"] = 0
+                                for name, direction in ((long_exchange, 1), (short_exchange, -1)):
+                                    entry = stats["entry_prices"].get(name)
+                                    exit_price = stats["exit_prices"].get(name)
+                                    if entry and exit_price:
+                                        stats["price_pnl"] += direction * (exit_price - entry) * self.position_size / entry
                             except Exception as e:
                                 logger.error(f"Error calculating price PnL: {e}")
                             
@@ -1535,6 +1543,7 @@ class FundingArbitrageEngine:
         asset: str,
         start_timestamp: int,
         stats: Dict,
+        exchange_name: str = "Lighter",
     ) -> bool:
         """Replace estimated Lighter funding PnL with actual signed payments."""
         try:
@@ -1547,12 +1556,12 @@ class FundingArbitrageEngine:
             if payments is None:
                 return False
 
-            stats["funding_payments"]["Lighter"] = sum(
+            stats["funding_payments"][exchange_name] = sum(
                 float(payment.get("change", 0)) for payment in payments
             )
             return True
         except Exception as e:
-            logger.warning(f"Could not refresh Lighter funding payments for {asset}: {e}")
+            logger.warning("Could not refresh %s funding payments for %s: %s", exchange_name, asset, e)
             return False
 
     async def _poll_funding_rates(
@@ -1564,10 +1573,12 @@ class FundingArbitrageEngine:
         funding_rate_queue,
         tradexyz=None,
         monitored_exchanges=None,
+        lighter_rhc=None,
     ):
         """Periodically poll funding rates as a backup."""
         bp_symbol = f"{asset}_USDC_PERP"
-        monitored_exchanges = monitored_exchanges or {"Backpack", "Hyperliquid", "Lighter", "TradeXYZ"}
+        if monitored_exchanges is None:
+            monitored_exchanges = {"Backpack", "Hyperliquid", "Lighter", "LighterRHC", "TradeXYZ"}
         
         while True:
             try:
@@ -1602,12 +1613,16 @@ class FundingArbitrageEngine:
                         await funding_rate_queue.put(("Hyperliquid", rate, time.time()))
             
                 # Get Lighter rates
-                if "Lighter" in monitored_exchanges and lighter:
-                    lt_data = await lighter.get_funding_rates()
-                    lt_rates = lighter.process_funding_rates(lt_data)
-                    if asset in lt_rates:
-                        rate = lt_rates[asset]["rate"]
-                        await funding_rate_queue.put(("Lighter", rate, time.time()))
+                for name, instance in (("Lighter", lighter), ("LighterRHC", lighter_rhc)):
+                    if name not in monitored_exchanges or instance is None:
+                        continue
+                    try:
+                        lt_data = await instance.get_funding_rates()
+                        lt_rates = instance.process_funding_rates(lt_data)
+                        if asset in lt_rates:
+                            await funding_rate_queue.put((name, lt_rates[asset]["rate"], time.time()))
+                    except Exception as e:
+                        logger.warning("Failed to poll %s funding: %s", name, e)
 
                 # Get TradeXYZ rates
                 if "TradeXYZ" in monitored_exchanges and tradexyz:
@@ -1644,15 +1659,13 @@ class FundingArbitrageEngine:
             return False
         
         try:
-            # Get exchange references
-            backpack = self.exchanges.get("Backpack")
-            hyperliquid = self.exchanges.get("Hyperliquid")
-            lighter = self.exchanges.get("Lighter")
-            tradexyz = self.exchanges.get("TradeXYZ")
-            
             # Get position details
             long_exchange = position.get('long_exchange')
             short_exchange = position.get('short_exchange')
+            pair = {name: self.exchanges.get(name) for name in (long_exchange, short_exchange)}
+            backpack = pair.get("Backpack")
+            hyperliquid = pair.get("Hyperliquid")
+            tradexyz = pair.get("TradeXYZ")
             
             # Close positions using the shared helper method
             long_close_success = await self._close_exchange_position(
@@ -1703,16 +1716,19 @@ class FundingArbitrageEngine:
                                 hyperliquid.close_position(asset)
                 
                 # Check Lighter positions
-                if lighter:
-                    lt_positions = await lighter.get_positions()
+                for name in LIGHTER_EXCHANGES:
+                    instance = pair.get(name)
+                    if instance is None:
+                        continue
+                    lt_positions = await instance.get_positions()
                     if isinstance(lt_positions, list):
                         for pos in lt_positions:
                             if pos.get("symbol") == asset and float(pos.get("size", "0")) != 0:
                                 lt_position_closed = False
-                                logger.warning(f"Lighter position still open: {pos}")
+                                logger.warning("%s position still open for %s", name, asset)
                                 # Try one more time to close
-                                logger.info("Making one final attempt to close Lighter position")
-                                await lighter.close_position(asset)
+                                logger.info("Making one final attempt to close %s position", name)
+                                await instance.close_position(asset)
 
                 tx_position_closed = True
                 if tradexyz:
@@ -1781,14 +1797,14 @@ class FundingArbitrageEngine:
                     result = exchange_obj.close_asset_position(asset_name)
                 elif exchange_name in ["Hyperliquid", "TradeXYZ"]:
                     result = exchange_obj.close_position(asset_name)
-                elif exchange_name == "Lighter":
+                elif exchange_name in LIGHTER_EXCHANGES:
                     result = await exchange_obj.close_position(asset_name)
                 else:
                     logger.error(f"Unknown exchange: {exchange_name}")
                     return False
                 
                 # Check if successful
-                if isinstance(result, dict) and "error" in result:
+                if not self._order_succeeded(result):
                     logger.warning(f"Failed to close {exchange_name} position (attempt {attempt+1}): {result}")
                     await asyncio.sleep(1)  # Wait before retry
                     continue
@@ -1828,7 +1844,7 @@ class FundingArbitrageEngine:
                             except Exception as e:
                                 logger.error(f"Error getting {exchange_name} exit price: {e}")
                     
-                    elif exchange_name == "Lighter":
+                    elif exchange_name in LIGHTER_EXCHANGES:
                         # Capture exit price if available
                         if isinstance(result, dict) and "price" in result:
                             stats_dict["exit_prices"][exchange_name] = float(result["price"])
