@@ -51,6 +51,12 @@ requested venue; closing an RHC leg must not close an unrelated Core position.
 Funding is REST-polled. WebSockets supply order-book/account data using the
 shared lifecycle wrapper. A failed startup handshake falls back to REST polling.
 
+Oracle diagnostics, server-reported liquidation prices, and cached maintenance
+status use the shared adapter as described in the
+[SDK update notes](lighter-sdk-october-2026.md). RHC uses its own status feed;
+confirmed active maintenance blocks new pairs but never blocks closing a leg.
+The 72,000 requests/minute Core premium limit does not apply to RHC.
+
 ```bash
 ./venv/bin/python -m unittest tests.test_lighter_rhc -v
 ./venv/bin/python -m unittest discover -q

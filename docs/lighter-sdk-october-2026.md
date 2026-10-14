@@ -1,9 +1,49 @@
 # Lighter SDK Updates: October 2026
 
+## Current SDK, Oracle and Maintenance Support
+
+The current pin is upstream revision
+`24fb46a7f7c5417b7abb7b2220635d55772f0ff6`, which updates the ctypes declarations
+and bundled native signers to accept 64-bit market indexes. PyPI still reports
+1.1.6, so installing that version alone does not include this patch. Install
+`requirements.txt` to obtain the exact Git revision. The adapter's overflow guard
+now follows the loaded signer ABI; SDK protocol validation can impose tighter
+limits than the C integer type. Market types still come from metadata, not IDs.
+
+Both `LighterExchange` and `LighterRHCExchange` now provide:
+
+- `await exchange.get_price_oracle_info(symbol="BTC")`, or omit `symbol` to
+  fetch all markets. The public endpoint's timestamp, index/mark source metadata,
+  internal-price flags, median sources, cap basis points and reference prices
+  are preserved. The SDK does not yet generate this endpoint, so the method uses
+  its existing HTTP transport. Errors are explicit, not an empty success. This
+  is diagnostic metadata, not an execution-price fallback or new funding source.
+- `await exchange.get_service_status(force=False)`, using the instance's public
+  Better Stack JSON feed. Responses are cached for 60 seconds; scheduled start
+  times are reevaluated on each read. Resolved reports are ignored, and unresolved
+  maintenance remains active after its estimated end. Unknown/custom/testnet
+  hosts and failed feeds return `state="unknown"`, never a fabricated healthy
+  state. No exchange credentials are sent to status hosts.
+- Optional server-reported `liquidation_price` in normalized positions and nested
+  balance positions. The announced multi-collateral correction is server-side;
+  the adapter passes through its result without recomputing a USDC-only estimate.
+  Missing values remain absent, and a supplied zero is preserved.
+
+Before opening either arbitrage leg, the engine checks selected Lighter venues
+for active maintenance and skips the pair when confirmed. Scheduled future
+maintenance is exposed but does not force an early close. Status-feed failures
+do not replace existing balance/signer/API checks, and do not disable closing,
+rollback or monitoring. This is a best-effort entry check, not a guarantee of
+exchange availability or a background notification service.
+
+Use [Core's status feed](https://status.lighter.xyz/index.json) and
+[RHC's status feed](https://robinhoodstatus.lighter.xyz/index.json).
+`status.betterstack.com` reports Better Stack's own services, not Lighter Core.
+
 ## October 9 API Compatibility
 
-PyPI and the upstream repository still publish SDK `1.1.6` as the latest version
-as of October 9. Keep the existing exact dependency pin. Some announced API
+As of October 9, SDK `1.1.6` was the latest upstream release; the current Git pin
+above supersedes it. Some announced API
 additions are not yet generated into the SDK, so the adapter bridges them:
 
 - `get_recent_trades()` accepts keyword-only `integrator_account_index`,
@@ -29,8 +69,8 @@ additions are not yet generated into the SDK, so the adapter bridges them:
   not a reservation or a local rate limiter; order scheduling remains unchanged.
 
 RHC's new market IDs already use our metadata-driven discovery (`market_type`,
-not numeric ranges) and instance-specific caches. The native signer ABI still
-uses a signed C int for market indexes: out-of-range IDs are rejected before
+not numeric ranges) and instance-specific caches. The current native signer ABI
+uses signed 64-bit market indexes; out-of-range IDs are rejected before
 signing rather than truncated. No new subscriptions, deposit flows, or unused
 metadata/referral/leaderboard integrations are introduced.
 
@@ -41,8 +81,8 @@ The adapter does not download or regenerate code from these schemas at runtime.
 
 ## Install
 
-The project now pins the published `lighter-sdk==1.1.6`, replacing the September
-Git revision. It includes the SDK's `on_shutdown` callback. The callback alone
+The current Git pin supersedes the earlier PyPI `lighter-sdk==1.1.6` pin and
+includes the SDK's `on_shutdown` callback. The callback alone
 does not reconnect; our wrapper owns connection replacement and cleanup.
 
 ```bash
@@ -88,7 +128,7 @@ Mainnet account indexes must not be reused blindly on testnet after resets.
 
 Core endpoint weights now include `accountOrders`/`accountActiveOrders` at 100,
 `trades` at 200, and `exchangeMetrics` at 120. The top Premium staking tier allows
-57,600 `sendTx`/`sendTxBatch` requests per minute; this is not a default entitlement.
+72,000 `sendTx`/`sendTxBatch` requests per minute; this is not a default entitlement.
 The repo has no local endpoint-weight table or tier-aware request budget to
 change. Polling and order frequency are unchanged; server throttling still applies.
 Do not apply Core-specific quotas to RHC.
@@ -103,6 +143,9 @@ This update does not add automated channel monitoring.
 
 ## Sources
 
+- [64-bit SDK signer update](https://github.com/elliottech/lighter-python/commit/24fb46a7f7c5417b7abb7b2220635d55772f0ff6)
+- [Core oracle metadata](https://apidocs.lighter.xyz/reference/priceoracleinfo)
+- [RHC oracle metadata](https://apidocs.rh.lighter.xyz/reference/priceoracleinfo)
 - [SDK 1.1.6](https://pypi.org/project/lighter-sdk/1.1.6/)
 - [SDK shutdown callback](https://github.com/elliottech/lighter-python/commit/106a5f4b2ec65f802eb558364b9eaabded320a3e)
 - [Trades endpoint](https://apidocs.lighter.xyz/reference/trades)

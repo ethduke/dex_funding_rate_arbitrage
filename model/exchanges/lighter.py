@@ -5,15 +5,19 @@ import os
 import time
 import asyncio
 import ctypes
+import httpx
+from copy import deepcopy
 from weakref import WeakValueDictionary
 from urllib.parse import urlsplit
 from model.exchanges.base import BaseExchange
 from model.exchanges.lighter_ws import LighterWebSocketClient
-from model.exchanges.normalized import BalanceSnapshot, FundingRate, OrderResult, Position, to_float
+from model.exchanges.lighter_status import STATUS_URLS, parse_service_status
+from model.exchanges.normalized import BalanceSnapshot, FundingRate, OrderResult, Position, to_float, to_optional_float
 from typing import Dict, List, Optional, Any, Callable, Tuple
 from utils.config import CONFIG
 from utils.logger import setup_logger
 from lighter import SignerClient
+from lighter.signer_client import get_signer
 from lighter.nonce_manager import NonceManagerType
 from lighter.endpoint_profiles import ENDPOINT_PROFILES, MAINNET
 from datetime import datetime
@@ -77,6 +81,8 @@ class LighterExchange(BaseExchange):
         self.transaction_api = None
         self.api_private_key = None
         self.api_public_key = None
+        self._service_status_cache = None
+        self._service_status_cache_ts = 0.0
         
         # Note: Account initialization will be done lazily when needed
         # This follows the same pattern as BackpackExchange
@@ -369,6 +375,7 @@ class LighterExchange(BaseExchange):
                             unrealized_pnl=to_float(position.unrealized_pnl),
                             realized_pnl=to_float(position.realized_pnl),
                             market_id=position.market_id,
+                            liquidation_price=to_optional_float(getattr(position, "liquidation_price", None)),
                         ).to_dict()
                         positions.append(normalized)
             
@@ -402,9 +409,9 @@ class LighterExchange(BaseExchange):
             
             # Convert symbol to market_id
             market_id = await self._get_market_id(symbol)
-            # The pinned SDK still uses c_int at the native signing boundary.
-            # Reject overflow rather than letting ctypes sign a different market.
-            if not 0 <= market_id < 1 << (ctypes.sizeof(ctypes.c_int) * 8 - 1):
+            # Match the loaded native ABI, including older installations.
+            market_type = get_signer().SignCreateOrder.argtypes[0]
+            if type(market_id) is not int or not 0 <= market_id < 1 << (ctypes.sizeof(market_type) * 8 - 1):
                 raise ValueError("Market ID exceeds the installed Lighter signer ABI; SDK update required")
             
             # Get market decimals for proper scaling
@@ -1125,6 +1132,65 @@ class LighterExchange(BaseExchange):
             "is_maker_ask": is_maker_ask,
         }
 
+    async def get_price_oracle_info(self, symbol: Optional[str] = None) -> Dict:
+        """Read oracle sources and cap metadata without treating them as trade prices."""
+        try:
+            if symbol is not None and (not isinstance(symbol, str) or not symbol.strip()):
+                raise ValueError("symbol must be a nonempty string")
+            request = self.api_client.param_serialize(
+                method="GET", resource_path="/api/v1/priceOracleInfo", path_params={},
+                query_params=[("symbol", symbol)] if symbol is not None else [],
+                header_params={"Accept": "application/json"}, body=None,
+                post_params=[], files={}, auth_settings=[], collection_formats={},
+            )
+            response = await self.api_client.call_api(*request, _request_timeout=15)
+            await response.read()
+            data = self.api_client.response_deserialize(
+                response_data=response, response_types_map={"200": "object"},
+            ).data
+            if not isinstance(data, dict) or data.get("code") != 200:
+                raise ValueError("Lighter price oracle request failed")
+            if (type(data.get("computed_at_ms")) is not int or not isinstance(data.get("markets"), list)
+                    or any(not isinstance(row, dict) or not isinstance(row.get("symbol"), str)
+                           or not isinstance(row.get("index"), dict) or not isinstance(row.get("mark"), dict)
+                           for row in data["markets"])):
+                raise ValueError("Invalid Lighter price oracle response")
+            return {**data, "exchange": self.exchange_name}
+        except Exception as exc:
+            logger.warning("%s oracle info unavailable (%s)", self.exchange_name, type(exc).__name__)
+            return {"exchange": self.exchange_name, "error": "Price oracle info unavailable", "markets": []}
+
+    async def get_service_status(self, force: bool = False) -> Dict:
+        """Read a cached status snapshot; unsupported hosts and failures stay unknown."""
+        url = STATUS_URLS.get(urlsplit(self.api_client.configuration.host).hostname)
+        now = time.monotonic()
+        cached = getattr(self, "_service_status_cache", None)
+        if (not force and cached and cached.get("source") == url
+                and now - self._service_status_cache_ts < 60):
+            payload = getattr(self, "_service_status_payload", None)
+            if payload is not None:
+                return deepcopy({**cached, **parse_service_status(payload, time.time())})
+            return deepcopy(cached)
+        result = {"exchange": self.exchange_name, "source": url,
+                  "state": "unknown", "maintenance_active": None,
+                  "maintenances": [], "resources": [], "checked_at": time.time()}
+        self._service_status_payload = None
+        if url is not None:
+            try:
+                # Separate public client: never forward exchange auth to the status host.
+                async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
+                    response = await client.get(url)
+                    response.raise_for_status()
+                    payload = response.json()
+                result.update(parse_service_status(payload, time.time()))
+                self._service_status_payload = payload
+            except Exception as exc:
+                result["error"] = "Status feed unavailable"
+                logger.warning("%s status feed unavailable (%s)", self.exchange_name, type(exc).__name__)
+        self._service_status_cache = result
+        self._service_status_cache_ts = time.monotonic()
+        return deepcopy(result)
+
     @staticmethod
     def _remaining_send_tx(response) -> Optional[int]:
         """Read advisory quota telemetry, including unmodeled SDK response fields."""
@@ -1373,6 +1439,7 @@ class LighterExchange(BaseExchange):
                             entry_price=to_float(position.avg_entry_price),
                             unrealized_pnl=to_float(position.unrealized_pnl),
                             market_id=position.market_id,
+                            liquidation_price=to_optional_float(getattr(position, "liquidation_price", None)),
                         ).to_dict())
                 
                 logger.debug(f"Real balance fetched: ${balance_info['total_asset_value']:.2f} total, ${balance_info['free_collateral']:.2f} free")

@@ -955,6 +955,15 @@ class FundingArbitrageEngine:
         if not await self._trade_pair_has_exact_symbol(asset, long_exchange, short_exchange):
             return None
 
+        # Check both venues before opening either leg; never gate closes/rollbacks.
+        for name in (long_exchange, short_exchange):
+            exchange = self.exchanges.get(name)
+            if name in LIGHTER_EXCHANGES and hasattr(exchange, "get_service_status"):
+                status = await exchange.get_service_status()
+                if status.get("maintenance_active") is True:
+                    logger.warning("Skipping new %s arbitrage: %s maintenance is active", asset, name)
+                    return None
+
         # Execute the trades
         try:
             backpack = self.exchanges.get("Backpack")

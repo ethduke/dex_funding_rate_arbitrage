@@ -81,6 +81,7 @@ class Position:
     realized_pnl: Optional[float] = None
     market_id: Optional[Any] = None
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+    liquidation_price: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return _without_none({
@@ -93,6 +94,7 @@ class Position:
             "unrealized_pnl": self.unrealized_pnl,
             "realized_pnl": self.realized_pnl,
             "market_id": self.market_id,
+            "liquidation_price": self.liquidation_price,
             "raw": self.raw or None,
         })
 
