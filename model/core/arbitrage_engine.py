@@ -9,6 +9,7 @@ from utils.logger import setup_logger
 from model.exchanges.backpack import BackpackExchange
 from model.exchanges.hyperliquid import HyperliquidExchange
 from model.exchanges.lighter import LighterExchange
+from model.exchanges.lighter_funding import ws_funding_to_hourly
 from model.exchanges.lighter_rhc import LighterRHCExchange
 from model.exchanges.tradexyz import TradeXYZExchange
 from model.exchanges.base import BaseExchange
@@ -1248,17 +1249,9 @@ class FundingArbitrageEngine:
             except Exception as e:
                 logger.error(f"Error in Hyperliquid callback: {e}", exc_info=True)
         
-        # Lighter callback for funding rate updates
+        # market_stats quotes hourly percentage points, unlike REST's 8h fraction.
         async def lt_rate_callback(market_stats):
-            try:
-                # Extract funding rate from market stats
-                funding_rate_str = market_stats.get("current_funding_rate")
-                
-                if funding_rate_str is not None:
-                    funding_rate = float(funding_rate_str)
-                    await funding_rate_queue.put(("Lighter", funding_rate, time.time()))
-            except Exception as e:
-                logger.error(f"Error in Lighter callback: {e}", exc_info=True)
+            await self._queue_lighter_ws_funding(market_stats, asset, funding_rate_queue)
         
         # Task to move data from thread-safe queue to asyncio queue
         async def process_hl_queue():
@@ -1572,6 +1565,21 @@ class FundingArbitrageEngine:
         except Exception as e:
             logger.warning("Could not refresh %s funding payments for %s: %s", exchange_name, asset, e)
             return False
+
+    @staticmethod
+    async def _queue_lighter_ws_funding(market_stats, asset, funding_rate_queue):
+        """Queue only this market's upcoming estimate as an hourly fraction."""
+        if not isinstance(market_stats, dict) or market_stats.get("symbol") != asset:
+            return
+        value = market_stats.get("current_funding_rate")
+        if value is None:
+            return
+        try:
+            rate = ws_funding_to_hourly(value)
+        except ValueError:
+            logger.warning("Ignoring invalid Lighter WebSocket funding estimate")
+            return
+        await funding_rate_queue.put(("Lighter", rate, time.time()))
 
     async def _poll_funding_rates(
         self,

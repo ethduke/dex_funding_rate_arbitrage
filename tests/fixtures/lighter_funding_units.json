@@ -1,0 +1,5736 @@
+{
+  "description": "Public REST/readonly WS captures, 2026-10-20. Only funding fields retained; rates are original source units. No credentials/account data.",
+  "venues": {
+    "Lighter": {
+      "rest_url": "https://mainnet.zklighter.elliot.ai/api/v1/funding-rates",
+      "websocket_url": "wss://mainnet.zklighter.elliot.ai/stream?readonly=true",
+      "subscription": {
+        "type": "subscribe",
+        "channel": "market_stats/all"
+      },
+      "received_at": {
+        "rest-before": 1792542292.784116,
+        "websocket": 1792542293.749132,
+        "rest-after": 1792542294.304362
+      },
+      "capture_sha256": {
+        "rest-before": "2e388386fabb105001837f318e895288b191d7ba035487202750f6f4d9026c2d",
+        "websocket": "064031e068e79819c2d17cfe5ebcdac2c7c156efd8ddc987160da46122edb5d3",
+        "rest-after": "735613ded2ae99f5bc0d1e85a14456a5845093774ec8b4e660cb65ea0913afda"
+      },
+      "markets": [
+        {
+          "rest_before": {
+            "market_id": 0,
+            "exchange": "lighter",
+            "symbol": "ETH",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "ETH",
+            "market_id": 0,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 0,
+            "exchange": "lighter",
+            "symbol": "ETH",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 1,
+            "exchange": "lighter",
+            "symbol": "BTC",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "BTC",
+            "market_id": 1,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0009",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 1,
+            "exchange": "lighter",
+            "symbol": "BTC",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 2,
+            "exchange": "lighter",
+            "symbol": "SOL",
+            "rate": 8.800000000000001e-05
+          },
+          "websocket": {
+            "symbol": "SOL",
+            "market_id": 2,
+            "current_funding_rate": "0.0011",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 2,
+            "exchange": "lighter",
+            "symbol": "SOL",
+            "rate": 8.800000000000001e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 3,
+            "exchange": "lighter",
+            "symbol": "DOGE",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "DOGE",
+            "market_id": 3,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 3,
+            "exchange": "lighter",
+            "symbol": "DOGE",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 4,
+            "exchange": "lighter",
+            "symbol": "1000PEPE",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "1000PEPE",
+            "market_id": 4,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 4,
+            "exchange": "lighter",
+            "symbol": "1000PEPE",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 5,
+            "exchange": "lighter",
+            "symbol": "WIF",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "WIF",
+            "market_id": 5,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 5,
+            "exchange": "lighter",
+            "symbol": "WIF",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 6,
+            "exchange": "lighter",
+            "symbol": "WLD",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "WLD",
+            "market_id": 6,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 6,
+            "exchange": "lighter",
+            "symbol": "WLD",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 7,
+            "exchange": "lighter",
+            "symbol": "XRP",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "XRP",
+            "market_id": 7,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 7,
+            "exchange": "lighter",
+            "symbol": "XRP",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 8,
+            "exchange": "lighter",
+            "symbol": "LINK",
+            "rate": 7.2e-05
+          },
+          "websocket": {
+            "symbol": "LINK",
+            "market_id": 8,
+            "current_funding_rate": "0.0009",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 8,
+            "exchange": "lighter",
+            "symbol": "LINK",
+            "rate": 7.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 9,
+            "exchange": "lighter",
+            "symbol": "AVAX",
+            "rate": 6.4e-05
+          },
+          "websocket": {
+            "symbol": "AVAX",
+            "market_id": 9,
+            "current_funding_rate": "0.0008",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 9,
+            "exchange": "lighter",
+            "symbol": "AVAX",
+            "rate": 6.4e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 10,
+            "exchange": "lighter",
+            "symbol": "NEAR",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "NEAR",
+            "market_id": 10,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 10,
+            "exchange": "lighter",
+            "symbol": "NEAR",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 11,
+            "exchange": "lighter",
+            "symbol": "DOT",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "DOT",
+            "market_id": 11,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 11,
+            "exchange": "lighter",
+            "symbol": "DOT",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 12,
+            "exchange": "lighter",
+            "symbol": "GRAM",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "GRAM",
+            "market_id": 12,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 12,
+            "exchange": "lighter",
+            "symbol": "GRAM",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 13,
+            "exchange": "lighter",
+            "symbol": "TAO",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "TAO",
+            "market_id": 13,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 13,
+            "exchange": "lighter",
+            "symbol": "TAO",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 14,
+            "exchange": "lighter",
+            "symbol": "POL",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "POL",
+            "market_id": 14,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 14,
+            "exchange": "lighter",
+            "symbol": "POL",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 15,
+            "exchange": "lighter",
+            "symbol": "TRUMP",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "TRUMP",
+            "market_id": 15,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 15,
+            "exchange": "lighter",
+            "symbol": "TRUMP",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 16,
+            "exchange": "lighter",
+            "symbol": "SUI",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "SUI",
+            "market_id": 16,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 16,
+            "exchange": "lighter",
+            "symbol": "SUI",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 17,
+            "exchange": "lighter",
+            "symbol": "1000SHIB",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "1000SHIB",
+            "market_id": 17,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 17,
+            "exchange": "lighter",
+            "symbol": "1000SHIB",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 18,
+            "exchange": "lighter",
+            "symbol": "1000BONK",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "1000BONK",
+            "market_id": 18,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 18,
+            "exchange": "lighter",
+            "symbol": "1000BONK",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 19,
+            "exchange": "lighter",
+            "symbol": "1000FLOKI",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "1000FLOKI",
+            "market_id": 19,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 19,
+            "exchange": "lighter",
+            "symbol": "1000FLOKI",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 20,
+            "exchange": "lighter",
+            "symbol": "BERA",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "BERA",
+            "market_id": 20,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 20,
+            "exchange": "lighter",
+            "symbol": "BERA",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 21,
+            "exchange": "lighter",
+            "symbol": "FARTCOIN",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "FARTCOIN",
+            "market_id": 21,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 21,
+            "exchange": "lighter",
+            "symbol": "FARTCOIN",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 23,
+            "exchange": "lighter",
+            "symbol": "POPCAT",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "POPCAT",
+            "market_id": 23,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 23,
+            "exchange": "lighter",
+            "symbol": "POPCAT",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 24,
+            "exchange": "lighter",
+            "symbol": "HYPE",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "HYPE",
+            "market_id": 24,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 24,
+            "exchange": "lighter",
+            "symbol": "HYPE",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 25,
+            "exchange": "lighter",
+            "symbol": "BNB",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "BNB",
+            "market_id": 25,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 25,
+            "exchange": "lighter",
+            "symbol": "BNB",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 26,
+            "exchange": "lighter",
+            "symbol": "JUP",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "JUP",
+            "market_id": 26,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 26,
+            "exchange": "lighter",
+            "symbol": "JUP",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 27,
+            "exchange": "lighter",
+            "symbol": "AAVE",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "AAVE",
+            "market_id": 27,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0001",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 27,
+            "exchange": "lighter",
+            "symbol": "AAVE",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 29,
+            "exchange": "lighter",
+            "symbol": "ENA",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "ENA",
+            "market_id": 29,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 29,
+            "exchange": "lighter",
+            "symbol": "ENA",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 30,
+            "exchange": "lighter",
+            "symbol": "UNI",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "UNI",
+            "market_id": 30,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 30,
+            "exchange": "lighter",
+            "symbol": "UNI",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 31,
+            "exchange": "lighter",
+            "symbol": "APT",
+            "rate": 0
+          },
+          "websocket": {
+            "symbol": "APT",
+            "market_id": 31,
+            "current_funding_rate": "0.0000",
+            "funding_rate": "-0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 31,
+            "exchange": "lighter",
+            "symbol": "APT",
+            "rate": 0
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 32,
+            "exchange": "lighter",
+            "symbol": "SEI",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "SEI",
+            "market_id": 32,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 32,
+            "exchange": "lighter",
+            "symbol": "SEI",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 33,
+            "exchange": "lighter",
+            "symbol": "KAITO",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "KAITO",
+            "market_id": 33,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 33,
+            "exchange": "lighter",
+            "symbol": "KAITO",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 34,
+            "exchange": "lighter",
+            "symbol": "DATA",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "DATA",
+            "market_id": 34,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 34,
+            "exchange": "lighter",
+            "symbol": "DATA",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 35,
+            "exchange": "lighter",
+            "symbol": "LTC",
+            "rate": -7.2e-05
+          },
+          "websocket": {
+            "symbol": "LTC",
+            "market_id": 35,
+            "current_funding_rate": "-0.0009",
+            "funding_rate": "-0.0007",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 35,
+            "exchange": "lighter",
+            "symbol": "LTC",
+            "rate": -7.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 36,
+            "exchange": "lighter",
+            "symbol": "CRV",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "CRV",
+            "market_id": 36,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 36,
+            "exchange": "lighter",
+            "symbol": "CRV",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 37,
+            "exchange": "lighter",
+            "symbol": "PENDLE",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "PENDLE",
+            "market_id": 37,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 37,
+            "exchange": "lighter",
+            "symbol": "PENDLE",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 38,
+            "exchange": "lighter",
+            "symbol": "ONDO",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "ONDO",
+            "market_id": 38,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 38,
+            "exchange": "lighter",
+            "symbol": "ONDO",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 39,
+            "exchange": "lighter",
+            "symbol": "ADA",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "ADA",
+            "market_id": 39,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0009",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 39,
+            "exchange": "lighter",
+            "symbol": "ADA",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 40,
+            "exchange": "lighter",
+            "symbol": "S",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "S",
+            "market_id": 40,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 40,
+            "exchange": "lighter",
+            "symbol": "S",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 41,
+            "exchange": "lighter",
+            "symbol": "VIRTUAL",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "VIRTUAL",
+            "market_id": 41,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 41,
+            "exchange": "lighter",
+            "symbol": "VIRTUAL",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 42,
+            "exchange": "lighter",
+            "symbol": "SPX",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "SPX",
+            "market_id": 42,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 42,
+            "exchange": "lighter",
+            "symbol": "SPX",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 43,
+            "exchange": "lighter",
+            "symbol": "TRX",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "TRX",
+            "market_id": 43,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 43,
+            "exchange": "lighter",
+            "symbol": "TRX",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 44,
+            "exchange": "lighter",
+            "symbol": "SYRUP",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "SYRUP",
+            "market_id": 44,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 44,
+            "exchange": "lighter",
+            "symbol": "SYRUP",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 45,
+            "exchange": "lighter",
+            "symbol": "PUMP",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "PUMP",
+            "market_id": 45,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 45,
+            "exchange": "lighter",
+            "symbol": "PUMP",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 46,
+            "exchange": "lighter",
+            "symbol": "LDO",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "LDO",
+            "market_id": 46,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 46,
+            "exchange": "lighter",
+            "symbol": "LDO",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 47,
+            "exchange": "lighter",
+            "symbol": "PENGU",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "PENGU",
+            "market_id": 47,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 47,
+            "exchange": "lighter",
+            "symbol": "PENGU",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 48,
+            "exchange": "lighter",
+            "symbol": "PAXG",
+            "rate": -0.000264
+          },
+          "websocket": {
+            "symbol": "PAXG",
+            "market_id": 48,
+            "current_funding_rate": "-0.0033",
+            "funding_rate": "-0.0022",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 48,
+            "exchange": "lighter",
+            "symbol": "PAXG",
+            "rate": -0.000264
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 49,
+            "exchange": "lighter",
+            "symbol": "EIGEN",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "EIGEN",
+            "market_id": 49,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 49,
+            "exchange": "lighter",
+            "symbol": "EIGEN",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 50,
+            "exchange": "lighter",
+            "symbol": "ARB",
+            "rate": -0.000144
+          },
+          "websocket": {
+            "symbol": "ARB",
+            "market_id": 50,
+            "current_funding_rate": "-0.0018",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 50,
+            "exchange": "lighter",
+            "symbol": "ARB",
+            "rate": -0.000144
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 52,
+            "exchange": "lighter",
+            "symbol": "GRASS",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "GRASS",
+            "market_id": 52,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 52,
+            "exchange": "lighter",
+            "symbol": "GRASS",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 53,
+            "exchange": "lighter",
+            "symbol": "ZORA",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "ZORA",
+            "market_id": 53,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 53,
+            "exchange": "lighter",
+            "symbol": "ZORA",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 55,
+            "exchange": "lighter",
+            "symbol": "OP",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "OP",
+            "market_id": 55,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 55,
+            "exchange": "lighter",
+            "symbol": "OP",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 56,
+            "exchange": "lighter",
+            "symbol": "ZK",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "ZK",
+            "market_id": 56,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 56,
+            "exchange": "lighter",
+            "symbol": "ZK",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 57,
+            "exchange": "lighter",
+            "symbol": "PROVE",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "PROVE",
+            "market_id": 57,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 57,
+            "exchange": "lighter",
+            "symbol": "PROVE",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 58,
+            "exchange": "lighter",
+            "symbol": "BCH",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "BCH",
+            "market_id": 58,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 58,
+            "exchange": "lighter",
+            "symbol": "BCH",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 59,
+            "exchange": "lighter",
+            "symbol": "HBAR",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "HBAR",
+            "market_id": 59,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 59,
+            "exchange": "lighter",
+            "symbol": "HBAR",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 60,
+            "exchange": "lighter",
+            "symbol": "ZRO",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "ZRO",
+            "market_id": 60,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 60,
+            "exchange": "lighter",
+            "symbol": "ZRO",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 61,
+            "exchange": "lighter",
+            "symbol": "GMX",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "GMX",
+            "market_id": 61,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 61,
+            "exchange": "lighter",
+            "symbol": "GMX",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 62,
+            "exchange": "lighter",
+            "symbol": "DYDX",
+            "rate": 6.4e-05
+          },
+          "websocket": {
+            "symbol": "DYDX",
+            "market_id": 62,
+            "current_funding_rate": "0.0008",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 62,
+            "exchange": "lighter",
+            "symbol": "DYDX",
+            "rate": 6.4e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 63,
+            "exchange": "lighter",
+            "symbol": "MNT",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "MNT",
+            "market_id": 63,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 63,
+            "exchange": "lighter",
+            "symbol": "MNT",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 64,
+            "exchange": "lighter",
+            "symbol": "ETHFI",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "ETHFI",
+            "market_id": 64,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 64,
+            "exchange": "lighter",
+            "symbol": "ETHFI",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 65,
+            "exchange": "lighter",
+            "symbol": "AERO",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "AERO",
+            "market_id": 65,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 65,
+            "exchange": "lighter",
+            "symbol": "AERO",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 66,
+            "exchange": "lighter",
+            "symbol": "USELESS",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "USELESS",
+            "market_id": 66,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 66,
+            "exchange": "lighter",
+            "symbol": "USELESS",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 67,
+            "exchange": "lighter",
+            "symbol": "TIA",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "TIA",
+            "market_id": 67,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0002",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 67,
+            "exchange": "lighter",
+            "symbol": "TIA",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 68,
+            "exchange": "lighter",
+            "symbol": "MORPHO",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "MORPHO",
+            "market_id": 68,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 68,
+            "exchange": "lighter",
+            "symbol": "MORPHO",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 69,
+            "exchange": "lighter",
+            "symbol": "VVV",
+            "rate": 0.000336
+          },
+          "websocket": {
+            "symbol": "VVV",
+            "market_id": 69,
+            "current_funding_rate": "0.0042",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 69,
+            "exchange": "lighter",
+            "symbol": "VVV",
+            "rate": 0.000336
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 71,
+            "exchange": "lighter",
+            "symbol": "XPL",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "XPL",
+            "market_id": 71,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 71,
+            "exchange": "lighter",
+            "symbol": "XPL",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 72,
+            "exchange": "lighter",
+            "symbol": "WLFI",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "WLFI",
+            "market_id": 72,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 72,
+            "exchange": "lighter",
+            "symbol": "WLFI",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 73,
+            "exchange": "lighter",
+            "symbol": "CRO",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "CRO",
+            "market_id": 73,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 73,
+            "exchange": "lighter",
+            "symbol": "CRO",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 74,
+            "exchange": "lighter",
+            "symbol": "NMR",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "NMR",
+            "market_id": 74,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 74,
+            "exchange": "lighter",
+            "symbol": "NMR",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 76,
+            "exchange": "lighter",
+            "symbol": "LINEA",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "LINEA",
+            "market_id": 76,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 76,
+            "exchange": "lighter",
+            "symbol": "LINEA",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 77,
+            "exchange": "lighter",
+            "symbol": "XMR",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "XMR",
+            "market_id": 77,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 77,
+            "exchange": "lighter",
+            "symbol": "XMR",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 78,
+            "exchange": "lighter",
+            "symbol": "PYTH",
+            "rate": 0
+          },
+          "websocket": {
+            "symbol": "PYTH",
+            "market_id": 78,
+            "current_funding_rate": "0.0000",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 78,
+            "exchange": "lighter",
+            "symbol": "PYTH",
+            "rate": 0
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 79,
+            "exchange": "lighter",
+            "symbol": "SKY",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "SKY",
+            "market_id": 79,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 79,
+            "exchange": "lighter",
+            "symbol": "SKY",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 82,
+            "exchange": "lighter",
+            "symbol": "AVNT",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "AVNT",
+            "market_id": 82,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 82,
+            "exchange": "lighter",
+            "symbol": "AVNT",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 83,
+            "exchange": "lighter",
+            "symbol": "ASTER",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "ASTER",
+            "market_id": 83,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 83,
+            "exchange": "lighter",
+            "symbol": "ASTER",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 84,
+            "exchange": "lighter",
+            "symbol": "0G",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "0G",
+            "market_id": 84,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 84,
+            "exchange": "lighter",
+            "symbol": "0G",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 85,
+            "exchange": "lighter",
+            "symbol": "STBL",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "STBL",
+            "market_id": 85,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 85,
+            "exchange": "lighter",
+            "symbol": "STBL",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 86,
+            "exchange": "lighter",
+            "symbol": "APEX",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "APEX",
+            "market_id": 86,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 86,
+            "exchange": "lighter",
+            "symbol": "APEX",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 87,
+            "exchange": "lighter",
+            "symbol": "FF",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "FF",
+            "market_id": 87,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 87,
+            "exchange": "lighter",
+            "symbol": "FF",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 88,
+            "exchange": "lighter",
+            "symbol": "2Z",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "2Z",
+            "market_id": 88,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 88,
+            "exchange": "lighter",
+            "symbol": "2Z",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 90,
+            "exchange": "lighter",
+            "symbol": "ZEC",
+            "rate": -0.00024
+          },
+          "websocket": {
+            "symbol": "ZEC",
+            "market_id": 90,
+            "current_funding_rate": "-0.0030",
+            "funding_rate": "-0.0039",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 90,
+            "exchange": "lighter",
+            "symbol": "ZEC",
+            "rate": -0.00024
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 91,
+            "exchange": "lighter",
+            "symbol": "MON",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "MON",
+            "market_id": 91,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 91,
+            "exchange": "lighter",
+            "symbol": "MON",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 92,
+            "exchange": "lighter",
+            "symbol": "XAU",
+            "rate": 0.0002
+          },
+          "websocket": {
+            "symbol": "XAU",
+            "market_id": 92,
+            "current_funding_rate": "0.0025",
+            "funding_rate": "0.0022",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 92,
+            "exchange": "lighter",
+            "symbol": "XAU",
+            "rate": 0.0002
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 93,
+            "exchange": "lighter",
+            "symbol": "XAG",
+            "rate": 0.000128
+          },
+          "websocket": {
+            "symbol": "XAG",
+            "market_id": 93,
+            "current_funding_rate": "0.0016",
+            "funding_rate": "0.0019",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 93,
+            "exchange": "lighter",
+            "symbol": "XAG",
+            "rate": 0.000128
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 94,
+            "exchange": "lighter",
+            "symbol": "MEGA",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "MEGA",
+            "market_id": 94,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 94,
+            "exchange": "lighter",
+            "symbol": "MEGA",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 95,
+            "exchange": "lighter",
+            "symbol": "MET",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "MET",
+            "market_id": 95,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 95,
+            "exchange": "lighter",
+            "symbol": "MET",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 96,
+            "exchange": "lighter",
+            "symbol": "EURUSD",
+            "rate": 0
+          },
+          "websocket": {
+            "symbol": "EURUSD",
+            "market_id": 96,
+            "current_funding_rate": "0.0000",
+            "funding_rate": "0.0000",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 96,
+            "exchange": "lighter",
+            "symbol": "EURUSD",
+            "rate": 0
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 97,
+            "exchange": "lighter",
+            "symbol": "GBPUSD",
+            "rate": 0
+          },
+          "websocket": {
+            "symbol": "GBPUSD",
+            "market_id": 97,
+            "current_funding_rate": "0.0000",
+            "funding_rate": "0.0000",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 97,
+            "exchange": "lighter",
+            "symbol": "GBPUSD",
+            "rate": 0
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 98,
+            "exchange": "lighter",
+            "symbol": "USDJPY",
+            "rate": 0
+          },
+          "websocket": {
+            "symbol": "USDJPY",
+            "market_id": 98,
+            "current_funding_rate": "0.0000",
+            "funding_rate": "0.0000",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 98,
+            "exchange": "lighter",
+            "symbol": "USDJPY",
+            "rate": 0
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 99,
+            "exchange": "lighter",
+            "symbol": "USDCHF",
+            "rate": 0
+          },
+          "websocket": {
+            "symbol": "USDCHF",
+            "market_id": 99,
+            "current_funding_rate": "0.0000",
+            "funding_rate": "0.0000",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 99,
+            "exchange": "lighter",
+            "symbol": "USDCHF",
+            "rate": 0
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 100,
+            "exchange": "lighter",
+            "symbol": "USDCAD",
+            "rate": 0
+          },
+          "websocket": {
+            "symbol": "USDCAD",
+            "market_id": 100,
+            "current_funding_rate": "0.0000",
+            "funding_rate": "0.0000",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 100,
+            "exchange": "lighter",
+            "symbol": "USDCAD",
+            "rate": 0
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 101,
+            "exchange": "lighter",
+            "symbol": "CC",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "CC",
+            "market_id": 101,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 101,
+            "exchange": "lighter",
+            "symbol": "CC",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 102,
+            "exchange": "lighter",
+            "symbol": "ICP",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "ICP",
+            "market_id": 102,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 102,
+            "exchange": "lighter",
+            "symbol": "ICP",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 103,
+            "exchange": "lighter",
+            "symbol": "FIL",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "FIL",
+            "market_id": 103,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 103,
+            "exchange": "lighter",
+            "symbol": "FIL",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 104,
+            "exchange": "lighter",
+            "symbol": "STRK",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "STRK",
+            "market_id": 104,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 104,
+            "exchange": "lighter",
+            "symbol": "STRK",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 105,
+            "exchange": "lighter",
+            "symbol": "USDKRW",
+            "rate": 0
+          },
+          "websocket": {
+            "symbol": "USDKRW",
+            "market_id": 105,
+            "current_funding_rate": "0.0000",
+            "funding_rate": "0.0000",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 105,
+            "exchange": "lighter",
+            "symbol": "USDKRW",
+            "rate": 0
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 106,
+            "exchange": "lighter",
+            "symbol": "AUDUSD",
+            "rate": 0
+          },
+          "websocket": {
+            "symbol": "AUDUSD",
+            "market_id": 106,
+            "current_funding_rate": "0.0000",
+            "funding_rate": "0.0000",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 106,
+            "exchange": "lighter",
+            "symbol": "AUDUSD",
+            "rate": 0
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 107,
+            "exchange": "lighter",
+            "symbol": "NZDUSD",
+            "rate": 0
+          },
+          "websocket": {
+            "symbol": "NZDUSD",
+            "market_id": 107,
+            "current_funding_rate": "0.0000",
+            "funding_rate": "0.0000",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 107,
+            "exchange": "lighter",
+            "symbol": "NZDUSD",
+            "rate": 0
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 108,
+            "exchange": "lighter",
+            "symbol": "HOOD",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "HOOD",
+            "market_id": 108,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 108,
+            "exchange": "lighter",
+            "symbol": "HOOD",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 109,
+            "exchange": "lighter",
+            "symbol": "COIN",
+            "rate": 0.000208
+          },
+          "websocket": {
+            "symbol": "COIN",
+            "market_id": 109,
+            "current_funding_rate": "0.0026",
+            "funding_rate": "0.0037",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 109,
+            "exchange": "lighter",
+            "symbol": "COIN",
+            "rate": 0.000208
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 110,
+            "exchange": "lighter",
+            "symbol": "NVDA",
+            "rate": 0.000144
+          },
+          "websocket": {
+            "symbol": "NVDA",
+            "market_id": 110,
+            "current_funding_rate": "0.0018",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 110,
+            "exchange": "lighter",
+            "symbol": "NVDA",
+            "rate": 0.000144
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 111,
+            "exchange": "lighter",
+            "symbol": "PLTR",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "PLTR",
+            "market_id": 111,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 111,
+            "exchange": "lighter",
+            "symbol": "PLTR",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 112,
+            "exchange": "lighter",
+            "symbol": "TSLA",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "TSLA",
+            "market_id": 112,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 112,
+            "exchange": "lighter",
+            "symbol": "TSLA",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 113,
+            "exchange": "lighter",
+            "symbol": "AAPL",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "AAPL",
+            "market_id": 113,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 113,
+            "exchange": "lighter",
+            "symbol": "AAPL",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 114,
+            "exchange": "lighter",
+            "symbol": "AMZN",
+            "rate": 0.000184
+          },
+          "websocket": {
+            "symbol": "AMZN",
+            "market_id": 114,
+            "current_funding_rate": "0.0023",
+            "funding_rate": "0.0008",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 114,
+            "exchange": "lighter",
+            "symbol": "AMZN",
+            "rate": 0.000184
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 115,
+            "exchange": "lighter",
+            "symbol": "MSFT",
+            "rate": 8.800000000000001e-05
+          },
+          "websocket": {
+            "symbol": "MSFT",
+            "market_id": 115,
+            "current_funding_rate": "0.0011",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 115,
+            "exchange": "lighter",
+            "symbol": "MSFT",
+            "rate": 8.800000000000001e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 116,
+            "exchange": "lighter",
+            "symbol": "GOOGL",
+            "rate": 0.000208
+          },
+          "websocket": {
+            "symbol": "GOOGL",
+            "market_id": 116,
+            "current_funding_rate": "0.0026",
+            "funding_rate": "0.0011",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 116,
+            "exchange": "lighter",
+            "symbol": "GOOGL",
+            "rate": 0.000208
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 117,
+            "exchange": "lighter",
+            "symbol": "META",
+            "rate": 0.00017600000000000002
+          },
+          "websocket": {
+            "symbol": "META",
+            "market_id": 117,
+            "current_funding_rate": "0.0022",
+            "funding_rate": "0.0013",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 117,
+            "exchange": "lighter",
+            "symbol": "META",
+            "rate": 0.00017600000000000002
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 118,
+            "exchange": "lighter",
+            "symbol": "STABLE",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "STABLE",
+            "market_id": 118,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 118,
+            "exchange": "lighter",
+            "symbol": "STABLE",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 119,
+            "exchange": "lighter",
+            "symbol": "XLM",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "XLM",
+            "market_id": 119,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 119,
+            "exchange": "lighter",
+            "symbol": "XLM",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 120,
+            "exchange": "lighter",
+            "symbol": "LIT",
+            "rate": -3.2e-05
+          },
+          "websocket": {
+            "symbol": "LIT",
+            "market_id": 120,
+            "current_funding_rate": "-0.0004",
+            "funding_rate": "-0.0018",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 120,
+            "exchange": "lighter",
+            "symbol": "LIT",
+            "rate": -3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 121,
+            "exchange": "lighter",
+            "symbol": "CRCL",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "CRCL",
+            "market_id": 121,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 121,
+            "exchange": "lighter",
+            "symbol": "CRCL",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 122,
+            "exchange": "lighter",
+            "symbol": "MSTR",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "MSTR",
+            "market_id": 122,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 122,
+            "exchange": "lighter",
+            "symbol": "MSTR",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 123,
+            "exchange": "lighter",
+            "symbol": "BMNR",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "BMNR",
+            "market_id": 123,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 123,
+            "exchange": "lighter",
+            "symbol": "BMNR",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 126,
+            "exchange": "lighter",
+            "symbol": "RIVER",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "RIVER",
+            "market_id": 126,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 126,
+            "exchange": "lighter",
+            "symbol": "RIVER",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 127,
+            "exchange": "lighter",
+            "symbol": "DASH",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "DASH",
+            "market_id": 127,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 127,
+            "exchange": "lighter",
+            "symbol": "DASH",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 128,
+            "exchange": "lighter",
+            "symbol": "SPY",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "SPY",
+            "market_id": 128,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 128,
+            "exchange": "lighter",
+            "symbol": "SPY",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 129,
+            "exchange": "lighter",
+            "symbol": "QQQ",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "QQQ",
+            "market_id": 129,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 129,
+            "exchange": "lighter",
+            "symbol": "QQQ",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 130,
+            "exchange": "lighter",
+            "symbol": "SKR",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "SKR",
+            "market_id": 130,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 130,
+            "exchange": "lighter",
+            "symbol": "SKR",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 131,
+            "exchange": "lighter",
+            "symbol": "AXS",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "AXS",
+            "market_id": 131,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 131,
+            "exchange": "lighter",
+            "symbol": "AXS",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 132,
+            "exchange": "lighter",
+            "symbol": "ARC",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "ARC",
+            "market_id": 132,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 132,
+            "exchange": "lighter",
+            "symbol": "ARC",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 134,
+            "exchange": "lighter",
+            "symbol": "JTO",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "JTO",
+            "market_id": 134,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 134,
+            "exchange": "lighter",
+            "symbol": "JTO",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 136,
+            "exchange": "lighter",
+            "symbol": "XCU",
+            "rate": 4e-05
+          },
+          "websocket": {
+            "symbol": "XCU",
+            "market_id": 136,
+            "current_funding_rate": "0.0005",
+            "funding_rate": "0.0006",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 136,
+            "exchange": "lighter",
+            "symbol": "XCU",
+            "rate": 4e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 137,
+            "exchange": "lighter",
+            "symbol": "INTC",
+            "rate": 0.000104
+          },
+          "websocket": {
+            "symbol": "INTC",
+            "market_id": 137,
+            "current_funding_rate": "0.0013",
+            "funding_rate": "0.0022",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 137,
+            "exchange": "lighter",
+            "symbol": "INTC",
+            "rate": 0.000104
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 138,
+            "exchange": "lighter",
+            "symbol": "AMD",
+            "rate": 0.000256
+          },
+          "websocket": {
+            "symbol": "AMD",
+            "market_id": 138,
+            "current_funding_rate": "0.0032",
+            "funding_rate": "0.0016",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 138,
+            "exchange": "lighter",
+            "symbol": "AMD",
+            "rate": 0.000256
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 139,
+            "exchange": "lighter",
+            "symbol": "SNDK",
+            "rate": 6.4e-05
+          },
+          "websocket": {
+            "symbol": "SNDK",
+            "market_id": 139,
+            "current_funding_rate": "0.0008",
+            "funding_rate": "0.0006",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 139,
+            "exchange": "lighter",
+            "symbol": "SNDK",
+            "rate": 6.4e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 144,
+            "exchange": "lighter",
+            "symbol": "AZTEC",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "AZTEC",
+            "market_id": 144,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 144,
+            "exchange": "lighter",
+            "symbol": "AZTEC",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 145,
+            "exchange": "lighter",
+            "symbol": "WTI",
+            "rate": -8e-06
+          },
+          "websocket": {
+            "symbol": "WTI",
+            "market_id": 145,
+            "current_funding_rate": "-0.0001",
+            "funding_rate": "-0.0007",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 145,
+            "exchange": "lighter",
+            "symbol": "WTI",
+            "rate": -8e-06
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 146,
+            "exchange": "lighter",
+            "symbol": "XPD",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "XPD",
+            "market_id": 146,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0019",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 146,
+            "exchange": "lighter",
+            "symbol": "XPD",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 147,
+            "exchange": "lighter",
+            "symbol": "XPT",
+            "rate": 0.000136
+          },
+          "websocket": {
+            "symbol": "XPT",
+            "market_id": 147,
+            "current_funding_rate": "0.0017",
+            "funding_rate": "0.0025",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 147,
+            "exchange": "lighter",
+            "symbol": "XPT",
+            "rate": 0.000136
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 149,
+            "exchange": "lighter",
+            "symbol": "ROBO",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "ROBO",
+            "market_id": 149,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0003",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 149,
+            "exchange": "lighter",
+            "symbol": "ROBO",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 151,
+            "exchange": "lighter",
+            "symbol": "ASML",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "ASML",
+            "market_id": 151,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 151,
+            "exchange": "lighter",
+            "symbol": "ASML",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 153,
+            "exchange": "lighter",
+            "symbol": "IWM",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "IWM",
+            "market_id": 153,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 153,
+            "exchange": "lighter",
+            "symbol": "IWM",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 156,
+            "exchange": "lighter",
+            "symbol": "STRC",
+            "rate": 0
+          },
+          "websocket": {
+            "symbol": "STRC",
+            "market_id": 156,
+            "current_funding_rate": "0.0000",
+            "funding_rate": "0.0000",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 156,
+            "exchange": "lighter",
+            "symbol": "STRC",
+            "rate": 0
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 157,
+            "exchange": "lighter",
+            "symbol": "EDGE",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "EDGE",
+            "market_id": 157,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 157,
+            "exchange": "lighter",
+            "symbol": "EDGE",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 158,
+            "exchange": "lighter",
+            "symbol": "NATGAS",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "NATGAS",
+            "market_id": 158,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 158,
+            "exchange": "lighter",
+            "symbol": "NATGAS",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 159,
+            "exchange": "lighter",
+            "symbol": "BRENTOIL",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "BRENTOIL",
+            "market_id": 159,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0014",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 159,
+            "exchange": "lighter",
+            "symbol": "BRENTOIL",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 160,
+            "exchange": "lighter",
+            "symbol": "HYUNDAIUSD",
+            "rate": 0.000536
+          },
+          "websocket": {
+            "symbol": "HYUNDAIUSD",
+            "market_id": 160,
+            "current_funding_rate": "0.0067",
+            "funding_rate": "0.0090",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 160,
+            "exchange": "lighter",
+            "symbol": "HYUNDAIUSD",
+            "rate": 0.000536
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 161,
+            "exchange": "lighter",
+            "symbol": "SKHYNIXUSD",
+            "rate": 0.0008160000000000001
+          },
+          "websocket": {
+            "symbol": "SKHYNIXUSD",
+            "market_id": 161,
+            "current_funding_rate": "0.0102",
+            "funding_rate": "0.0148",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 161,
+            "exchange": "lighter",
+            "symbol": "SKHYNIXUSD",
+            "rate": 0.0008160000000000001
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 162,
+            "exchange": "lighter",
+            "symbol": "SAMSUNGUSD",
+            "rate": 0.000808
+          },
+          "websocket": {
+            "symbol": "SAMSUNGUSD",
+            "market_id": 162,
+            "current_funding_rate": "0.0101",
+            "funding_rate": "0.0053",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 162,
+            "exchange": "lighter",
+            "symbol": "SAMSUNGUSD",
+            "rate": 0.000808
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 163,
+            "exchange": "lighter",
+            "symbol": "CHIP",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "CHIP",
+            "market_id": 163,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 163,
+            "exchange": "lighter",
+            "symbol": "CHIP",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 164,
+            "exchange": "lighter",
+            "symbol": "MU",
+            "rate": 4e-05
+          },
+          "websocket": {
+            "symbol": "MU",
+            "market_id": 164,
+            "current_funding_rate": "0.0005",
+            "funding_rate": "0.0005",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 164,
+            "exchange": "lighter",
+            "symbol": "MU",
+            "rate": 4e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 165,
+            "exchange": "lighter",
+            "symbol": "ORCL",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "ORCL",
+            "market_id": 165,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 165,
+            "exchange": "lighter",
+            "symbol": "ORCL",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 166,
+            "exchange": "lighter",
+            "symbol": "EWY",
+            "rate": 4e-05
+          },
+          "websocket": {
+            "symbol": "EWY",
+            "market_id": 166,
+            "current_funding_rate": "0.0005",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 166,
+            "exchange": "lighter",
+            "symbol": "EWY",
+            "rate": 4e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 167,
+            "exchange": "lighter",
+            "symbol": "CRWV",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "CRWV",
+            "market_id": 167,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 167,
+            "exchange": "lighter",
+            "symbol": "CRWV",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 168,
+            "exchange": "lighter",
+            "symbol": "TSM",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "TSM",
+            "market_id": 168,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0005",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 168,
+            "exchange": "lighter",
+            "symbol": "TSM",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 171,
+            "exchange": "lighter",
+            "symbol": "BIO",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "BIO",
+            "market_id": 171,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 171,
+            "exchange": "lighter",
+            "symbol": "BIO",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 172,
+            "exchange": "lighter",
+            "symbol": "1000NOT",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "1000NOT",
+            "market_id": 172,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 172,
+            "exchange": "lighter",
+            "symbol": "1000NOT",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 174,
+            "exchange": "lighter",
+            "symbol": "MRVL",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "MRVL",
+            "market_id": 174,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 174,
+            "exchange": "lighter",
+            "symbol": "MRVL",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 175,
+            "exchange": "lighter",
+            "symbol": "CBRS",
+            "rate": 0.000304
+          },
+          "websocket": {
+            "symbol": "CBRS",
+            "market_id": 175,
+            "current_funding_rate": "0.0038",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 175,
+            "exchange": "lighter",
+            "symbol": "CBRS",
+            "rate": 0.000304
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 176,
+            "exchange": "lighter",
+            "symbol": "GME",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "GME",
+            "market_id": 176,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 176,
+            "exchange": "lighter",
+            "symbol": "GME",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 177,
+            "exchange": "lighter",
+            "symbol": "BABA",
+            "rate": 8e-05
+          },
+          "websocket": {
+            "symbol": "BABA",
+            "market_id": 177,
+            "current_funding_rate": "0.0010",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 177,
+            "exchange": "lighter",
+            "symbol": "BABA",
+            "rate": 8e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 178,
+            "exchange": "lighter",
+            "symbol": "LITE",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "LITE",
+            "market_id": 178,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 178,
+            "exchange": "lighter",
+            "symbol": "LITE",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 179,
+            "exchange": "lighter",
+            "symbol": "TTWO",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "TTWO",
+            "market_id": 179,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 179,
+            "exchange": "lighter",
+            "symbol": "TTWO",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 180,
+            "exchange": "lighter",
+            "symbol": "US500",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "US500",
+            "market_id": 180,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 180,
+            "exchange": "lighter",
+            "symbol": "US500",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 181,
+            "exchange": "lighter",
+            "symbol": "US100",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "US100",
+            "market_id": 181,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 181,
+            "exchange": "lighter",
+            "symbol": "US100",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 182,
+            "exchange": "lighter",
+            "symbol": "H100",
+            "rate": -0.006304
+          },
+          "websocket": {
+            "symbol": "H100",
+            "market_id": 182,
+            "current_funding_rate": "-0.0788",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 182,
+            "exchange": "lighter",
+            "symbol": "H100",
+            "rate": -0.006304
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 183,
+            "exchange": "lighter",
+            "symbol": "CTR",
+            "rate": -0.000504
+          },
+          "websocket": {
+            "symbol": "CTR",
+            "market_id": 183,
+            "current_funding_rate": "-0.0063",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 183,
+            "exchange": "lighter",
+            "symbol": "CTR",
+            "rate": -0.000504
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 184,
+            "exchange": "lighter",
+            "symbol": "RAIL",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "RAIL",
+            "market_id": 184,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 184,
+            "exchange": "lighter",
+            "symbol": "RAIL",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 185,
+            "exchange": "lighter",
+            "symbol": "BOT",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "BOT",
+            "market_id": 185,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 185,
+            "exchange": "lighter",
+            "symbol": "BOT",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 186,
+            "exchange": "lighter",
+            "symbol": "RKLB",
+            "rate": 5.6e-05
+          },
+          "websocket": {
+            "symbol": "RKLB",
+            "market_id": 186,
+            "current_funding_rate": "0.0007",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 186,
+            "exchange": "lighter",
+            "symbol": "RKLB",
+            "rate": 5.6e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 187,
+            "exchange": "lighter",
+            "symbol": "DELL",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "DELL",
+            "market_id": 187,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 187,
+            "exchange": "lighter",
+            "symbol": "DELL",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 188,
+            "exchange": "lighter",
+            "symbol": "IBM",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "IBM",
+            "market_id": 188,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 188,
+            "exchange": "lighter",
+            "symbol": "IBM",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 189,
+            "exchange": "lighter",
+            "symbol": "NBIS",
+            "rate": 0.00017600000000000002
+          },
+          "websocket": {
+            "symbol": "NBIS",
+            "market_id": 189,
+            "current_funding_rate": "0.0022",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 189,
+            "exchange": "lighter",
+            "symbol": "NBIS",
+            "rate": 0.00017600000000000002
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 190,
+            "exchange": "lighter",
+            "symbol": "QNT",
+            "rate": -0.000208
+          },
+          "websocket": {
+            "symbol": "QNT",
+            "market_id": 190,
+            "current_funding_rate": "-0.0026",
+            "funding_rate": "-0.0036",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 190,
+            "exchange": "lighter",
+            "symbol": "QNT",
+            "rate": -0.000208
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 191,
+            "exchange": "lighter",
+            "symbol": "NOW",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "NOW",
+            "market_id": 191,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 191,
+            "exchange": "lighter",
+            "symbol": "NOW",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 192,
+            "exchange": "lighter",
+            "symbol": "OPENAI",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "OPENAI",
+            "market_id": 192,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0010",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 192,
+            "exchange": "lighter",
+            "symbol": "OPENAI",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 193,
+            "exchange": "lighter",
+            "symbol": "ANTHROPIC",
+            "rate": 4e-05
+          },
+          "websocket": {
+            "symbol": "ANTHROPIC",
+            "market_id": 193,
+            "current_funding_rate": "0.0005",
+            "funding_rate": "0.0002",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 193,
+            "exchange": "lighter",
+            "symbol": "ANTHROPIC",
+            "rate": 4e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 194,
+            "exchange": "lighter",
+            "symbol": "SPCX",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "SPCX",
+            "market_id": 194,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 194,
+            "exchange": "lighter",
+            "symbol": "SPCX",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 195,
+            "exchange": "lighter",
+            "symbol": "DRAM",
+            "rate": 0.000256
+          },
+          "websocket": {
+            "symbol": "DRAM",
+            "market_id": 195,
+            "current_funding_rate": "0.0032",
+            "funding_rate": "0.0010",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 195,
+            "exchange": "lighter",
+            "symbol": "DRAM",
+            "rate": 0.000256
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 196,
+            "exchange": "lighter",
+            "symbol": "BE",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "BE",
+            "market_id": 196,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 196,
+            "exchange": "lighter",
+            "symbol": "BE",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 197,
+            "exchange": "lighter",
+            "symbol": "SOXL",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "SOXL",
+            "market_id": 197,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 197,
+            "exchange": "lighter",
+            "symbol": "SOXL",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 198,
+            "exchange": "lighter",
+            "symbol": "USDHKD",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "USDHKD",
+            "market_id": 198,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 198,
+            "exchange": "lighter",
+            "symbol": "USDHKD",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 199,
+            "exchange": "lighter",
+            "symbol": "MINIMAX",
+            "rate": 0.000104
+          },
+          "websocket": {
+            "symbol": "MINIMAX",
+            "market_id": 199,
+            "current_funding_rate": "0.0013",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 199,
+            "exchange": "lighter",
+            "symbol": "MINIMAX",
+            "rate": 0.000104
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 200,
+            "exchange": "lighter",
+            "symbol": "BYD",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "BYD",
+            "market_id": 200,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 200,
+            "exchange": "lighter",
+            "symbol": "BYD",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 201,
+            "exchange": "lighter",
+            "symbol": "TENCENT",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "TENCENT",
+            "market_id": 201,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 201,
+            "exchange": "lighter",
+            "symbol": "TENCENT",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 202,
+            "exchange": "lighter",
+            "symbol": "SMIC",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "SMIC",
+            "market_id": 202,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 202,
+            "exchange": "lighter",
+            "symbol": "SMIC",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 203,
+            "exchange": "lighter",
+            "symbol": "XIAOMI",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "XIAOMI",
+            "market_id": 203,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 203,
+            "exchange": "lighter",
+            "symbol": "XIAOMI",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 204,
+            "exchange": "lighter",
+            "symbol": "POPMART",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "POPMART",
+            "market_id": 204,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 204,
+            "exchange": "lighter",
+            "symbol": "POPMART",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 205,
+            "exchange": "lighter",
+            "symbol": "ZHIPU",
+            "rate": 0.001424
+          },
+          "websocket": {
+            "symbol": "ZHIPU",
+            "market_id": 205,
+            "current_funding_rate": "0.0178",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 205,
+            "exchange": "lighter",
+            "symbol": "ZHIPU",
+            "rate": 0.001424
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 206,
+            "exchange": "lighter",
+            "symbol": "ARM",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "ARM",
+            "market_id": 206,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 206,
+            "exchange": "lighter",
+            "symbol": "ARM",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 207,
+            "exchange": "lighter",
+            "symbol": "AAOI",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "AAOI",
+            "market_id": 207,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 207,
+            "exchange": "lighter",
+            "symbol": "AAOI",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 208,
+            "exchange": "lighter",
+            "symbol": "NOK",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "NOK",
+            "market_id": 208,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 208,
+            "exchange": "lighter",
+            "symbol": "NOK",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 209,
+            "exchange": "lighter",
+            "symbol": "QCOM",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "QCOM",
+            "market_id": 209,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 209,
+            "exchange": "lighter",
+            "symbol": "QCOM",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 210,
+            "exchange": "lighter",
+            "symbol": "AVGO",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "AVGO",
+            "market_id": 210,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 210,
+            "exchange": "lighter",
+            "symbol": "AVGO",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 211,
+            "exchange": "lighter",
+            "symbol": "BB",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "BB",
+            "market_id": 211,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 211,
+            "exchange": "lighter",
+            "symbol": "BB",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 212,
+            "exchange": "lighter",
+            "symbol": "CAP",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "CAP",
+            "market_id": 212,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 212,
+            "exchange": "lighter",
+            "symbol": "CAP",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 214,
+            "exchange": "lighter",
+            "symbol": "WEN",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "WEN",
+            "market_id": 214,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "-0.0002",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 214,
+            "exchange": "lighter",
+            "symbol": "WEN",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 215,
+            "exchange": "lighter",
+            "symbol": "FOLKS",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "FOLKS",
+            "market_id": 215,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 215,
+            "exchange": "lighter",
+            "symbol": "FOLKS",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 216,
+            "exchange": "lighter",
+            "symbol": "SKHY",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "SKHY",
+            "market_id": 216,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "-0.0003",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 216,
+            "exchange": "lighter",
+            "symbol": "SKHY",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 217,
+            "exchange": "lighter",
+            "symbol": "CXMT",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "CXMT",
+            "market_id": 217,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 217,
+            "exchange": "lighter",
+            "symbol": "CXMT",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 218,
+            "exchange": "lighter",
+            "symbol": "GEV",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "GEV",
+            "market_id": 218,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 218,
+            "exchange": "lighter",
+            "symbol": "GEV",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 219,
+            "exchange": "lighter",
+            "symbol": "ANSEM",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "ANSEM",
+            "market_id": 219,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 219,
+            "exchange": "lighter",
+            "symbol": "ANSEM",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 220,
+            "exchange": "lighter",
+            "symbol": "UNITREE",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "UNITREE",
+            "market_id": 220,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 220,
+            "exchange": "lighter",
+            "symbol": "UNITREE",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 221,
+            "exchange": "lighter",
+            "symbol": "CASHCAT",
+            "rate": 0.002664
+          },
+          "websocket": {
+            "symbol": "CASHCAT",
+            "market_id": 221,
+            "current_funding_rate": "0.0333",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 221,
+            "exchange": "lighter",
+            "symbol": "CASHCAT",
+            "rate": 0.002664
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 222,
+            "exchange": "lighter",
+            "symbol": "SOXS",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "SOXS",
+            "market_id": 222,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 222,
+            "exchange": "lighter",
+            "symbol": "SOXS",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 223,
+            "exchange": "lighter",
+            "symbol": "WDC",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "WDC",
+            "market_id": 223,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 223,
+            "exchange": "lighter",
+            "symbol": "WDC",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 224,
+            "exchange": "lighter",
+            "symbol": "AXTI",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "AXTI",
+            "market_id": 224,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 224,
+            "exchange": "lighter",
+            "symbol": "AXTI",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 225,
+            "exchange": "lighter",
+            "symbol": "KIOXIA",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "KIOXIA",
+            "market_id": 225,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 225,
+            "exchange": "lighter",
+            "symbol": "KIOXIA",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 226,
+            "exchange": "lighter",
+            "symbol": "KORU",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "KORU",
+            "market_id": 226,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 226,
+            "exchange": "lighter",
+            "symbol": "KORU",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 227,
+            "exchange": "lighter",
+            "symbol": "US10Y",
+            "rate": 0
+          },
+          "websocket": {
+            "symbol": "US10Y",
+            "market_id": 227,
+            "current_funding_rate": "0.0000",
+            "funding_rate": "0.0000",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 227,
+            "exchange": "lighter",
+            "symbol": "US10Y",
+            "rate": 0
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 228,
+            "exchange": "lighter",
+            "symbol": "MRNA",
+            "rate": 0.000472
+          },
+          "websocket": {
+            "symbol": "MRNA",
+            "market_id": 228,
+            "current_funding_rate": "0.0059",
+            "funding_rate": "-0.0020",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 228,
+            "exchange": "lighter",
+            "symbol": "MRNA",
+            "rate": 0.000472
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 229,
+            "exchange": "lighter",
+            "symbol": "STABLECOINX",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "STABLECOINX",
+            "market_id": 229,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 229,
+            "exchange": "lighter",
+            "symbol": "STABLECOINX",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 230,
+            "exchange": "lighter",
+            "symbol": "SHEIN",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "SHEIN",
+            "market_id": 230,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 230,
+            "exchange": "lighter",
+            "symbol": "SHEIN",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 231,
+            "exchange": "lighter",
+            "symbol": "PONS",
+            "rate": -8e-05
+          },
+          "websocket": {
+            "symbol": "PONS",
+            "market_id": 231,
+            "current_funding_rate": "-0.0010",
+            "funding_rate": "-0.0041",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 231,
+            "exchange": "lighter",
+            "symbol": "PONS",
+            "rate": -8e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 232,
+            "exchange": "lighter",
+            "symbol": "AI",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "AI",
+            "market_id": 232,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 232,
+            "exchange": "lighter",
+            "symbol": "AI",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 233,
+            "exchange": "lighter",
+            "symbol": "RAY",
+            "rate": 6.4e-05
+          },
+          "websocket": {
+            "symbol": "RAY",
+            "market_id": 233,
+            "current_funding_rate": "0.0008",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 233,
+            "exchange": "lighter",
+            "symbol": "RAY",
+            "rate": 6.4e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 4095,
+            "exchange": "lighter",
+            "symbol": "STONK",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "STONK",
+            "market_id": 4095,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 4095,
+            "exchange": "lighter",
+            "symbol": "STONK",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 4096,
+            "exchange": "lighter",
+            "symbol": "OURA",
+            "rate": 0
+          },
+          "websocket": {
+            "symbol": "OURA",
+            "market_id": 4096,
+            "current_funding_rate": "0.0000",
+            "funding_rate": "0.0000",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 4096,
+            "exchange": "lighter",
+            "symbol": "OURA",
+            "rate": 0
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 4097,
+            "exchange": "lighter",
+            "symbol": "PRL",
+            "rate": 0.01012
+          },
+          "websocket": {
+            "symbol": "PRL",
+            "market_id": 4097,
+            "current_funding_rate": "0.1265",
+            "funding_rate": "0.0429",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 4097,
+            "exchange": "lighter",
+            "symbol": "PRL",
+            "rate": 0.01012
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 4098,
+            "exchange": "lighter",
+            "symbol": "VARIATIONAL",
+            "rate": 0
+          },
+          "websocket": {
+            "symbol": "VARIATIONAL",
+            "market_id": 4098,
+            "current_funding_rate": "0.0000",
+            "funding_rate": "0.0000",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 4098,
+            "exchange": "lighter",
+            "symbol": "VARIATIONAL",
+            "rate": 0
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 4099,
+            "exchange": "lighter",
+            "symbol": "DRV",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "DRV",
+            "market_id": 4099,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800001
+          },
+          "rest_after": {
+            "market_id": 4099,
+            "exchange": "lighter",
+            "symbol": "DRV",
+            "rate": 9.599999999999999e-05
+          }
+        }
+      ]
+    },
+    "LighterRHC": {
+      "rest_url": "https://api.rh.lighter.xyz/api/v1/funding-rates",
+      "websocket_url": "wss://api.rh.lighter.xyz/stream?readonly=true",
+      "subscription": {
+        "type": "subscribe",
+        "channel": "market_stats/all"
+      },
+      "received_at": {
+        "rest-before": 1792542330.858145,
+        "websocket": 1792542331.7432199,
+        "rest-after": 1792542332.248
+      },
+      "capture_sha256": {
+        "rest-before": "34ee4dc88b1551a1e436db13666a1a454f2559eb46ba9d12f576781c669c04cc",
+        "websocket": "d17a9baaf934710a1e9a98b8ab241380e5271428866b32694d6b0b80fc8b6390",
+        "rest-after": "6eef77bff50d6e4d4be298241811a6d7a5853183e8b2f3695fd1db3e97d505ef"
+      },
+      "markets": [
+        {
+          "rest_before": {
+            "market_id": 0,
+            "exchange": "lighter",
+            "symbol": "ETH",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "ETH",
+            "market_id": 0,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 0,
+            "exchange": "lighter",
+            "symbol": "ETH",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 1,
+            "exchange": "lighter",
+            "symbol": "BTC",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "BTC",
+            "market_id": 1,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 1,
+            "exchange": "lighter",
+            "symbol": "BTC",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 2,
+            "exchange": "lighter",
+            "symbol": "HYPE",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "HYPE",
+            "market_id": 2,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 2,
+            "exchange": "lighter",
+            "symbol": "HYPE",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 3,
+            "exchange": "lighter",
+            "symbol": "SOL",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "SOL",
+            "market_id": 3,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 3,
+            "exchange": "lighter",
+            "symbol": "SOL",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 4,
+            "exchange": "lighter",
+            "symbol": "ZEC",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "ZEC",
+            "market_id": 4,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 4,
+            "exchange": "lighter",
+            "symbol": "ZEC",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 5,
+            "exchange": "lighter",
+            "symbol": "LIT",
+            "rate": -6.4e-05
+          },
+          "websocket": {
+            "symbol": "LIT",
+            "market_id": 5,
+            "current_funding_rate": "-0.0008",
+            "funding_rate": "-0.0026",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 5,
+            "exchange": "lighter",
+            "symbol": "LIT",
+            "rate": -6.4e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 6,
+            "exchange": "lighter",
+            "symbol": "XRP",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "XRP",
+            "market_id": 6,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 6,
+            "exchange": "lighter",
+            "symbol": "XRP",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 7,
+            "exchange": "lighter",
+            "symbol": "NEAR",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "NEAR",
+            "market_id": 7,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 7,
+            "exchange": "lighter",
+            "symbol": "NEAR",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 8,
+            "exchange": "lighter",
+            "symbol": "VVV",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "VVV",
+            "market_id": 8,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 8,
+            "exchange": "lighter",
+            "symbol": "VVV",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 9,
+            "exchange": "lighter",
+            "symbol": "SUI",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "SUI",
+            "market_id": 9,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 9,
+            "exchange": "lighter",
+            "symbol": "SUI",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 10,
+            "exchange": "lighter",
+            "symbol": "AAPL",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "AAPL",
+            "market_id": 10,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 10,
+            "exchange": "lighter",
+            "symbol": "AAPL",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 11,
+            "exchange": "lighter",
+            "symbol": "AMZN",
+            "rate": 5.6e-05
+          },
+          "websocket": {
+            "symbol": "AMZN",
+            "market_id": 11,
+            "current_funding_rate": "0.0007",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 11,
+            "exchange": "lighter",
+            "symbol": "AMZN",
+            "rate": 5.6e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 12,
+            "exchange": "lighter",
+            "symbol": "GOOGL",
+            "rate": 0.000104
+          },
+          "websocket": {
+            "symbol": "GOOGL",
+            "market_id": 12,
+            "current_funding_rate": "0.0013",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 12,
+            "exchange": "lighter",
+            "symbol": "GOOGL",
+            "rate": 0.000104
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 13,
+            "exchange": "lighter",
+            "symbol": "META",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "META",
+            "market_id": 13,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 13,
+            "exchange": "lighter",
+            "symbol": "META",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 14,
+            "exchange": "lighter",
+            "symbol": "MSFT",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "MSFT",
+            "market_id": 14,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 14,
+            "exchange": "lighter",
+            "symbol": "MSFT",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 15,
+            "exchange": "lighter",
+            "symbol": "NVDA",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "NVDA",
+            "market_id": 15,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 15,
+            "exchange": "lighter",
+            "symbol": "NVDA",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 16,
+            "exchange": "lighter",
+            "symbol": "TSLA",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "TSLA",
+            "market_id": 16,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 16,
+            "exchange": "lighter",
+            "symbol": "TSLA",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 17,
+            "exchange": "lighter",
+            "symbol": "ORCL",
+            "rate": 8.800000000000001e-05
+          },
+          "websocket": {
+            "symbol": "ORCL",
+            "market_id": 17,
+            "current_funding_rate": "0.0011",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 17,
+            "exchange": "lighter",
+            "symbol": "ORCL",
+            "rate": 8.800000000000001e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 18,
+            "exchange": "lighter",
+            "symbol": "SPCX",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "SPCX",
+            "market_id": 18,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 18,
+            "exchange": "lighter",
+            "symbol": "SPCX",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 19,
+            "exchange": "lighter",
+            "symbol": "BABA",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "BABA",
+            "market_id": 19,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 19,
+            "exchange": "lighter",
+            "symbol": "BABA",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 20,
+            "exchange": "lighter",
+            "symbol": "BE",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "BE",
+            "market_id": 20,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 20,
+            "exchange": "lighter",
+            "symbol": "BE",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 21,
+            "exchange": "lighter",
+            "symbol": "USAR",
+            "rate": 0.0012720000000000001
+          },
+          "websocket": {
+            "symbol": "USAR",
+            "market_id": 21,
+            "current_funding_rate": "0.0159",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 21,
+            "exchange": "lighter",
+            "symbol": "USAR",
+            "rate": 0.0012720000000000001
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 22,
+            "exchange": "lighter",
+            "symbol": "USO",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "USO",
+            "market_id": 22,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 22,
+            "exchange": "lighter",
+            "symbol": "USO",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 23,
+            "exchange": "lighter",
+            "symbol": "COIN",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "COIN",
+            "market_id": 23,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0013",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 23,
+            "exchange": "lighter",
+            "symbol": "COIN",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 24,
+            "exchange": "lighter",
+            "symbol": "CRCL",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "CRCL",
+            "market_id": 24,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 24,
+            "exchange": "lighter",
+            "symbol": "CRCL",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 25,
+            "exchange": "lighter",
+            "symbol": "QQQ",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "QQQ",
+            "market_id": 25,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 25,
+            "exchange": "lighter",
+            "symbol": "QQQ",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 26,
+            "exchange": "lighter",
+            "symbol": "SPY",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "SPY",
+            "market_id": 26,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 26,
+            "exchange": "lighter",
+            "symbol": "SPY",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 27,
+            "exchange": "lighter",
+            "symbol": "SGOV",
+            "rate": -0.00043999999999999996
+          },
+          "websocket": {
+            "symbol": "SGOV",
+            "market_id": 27,
+            "current_funding_rate": "-0.0055",
+            "funding_rate": "-0.0049",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 27,
+            "exchange": "lighter",
+            "symbol": "SGOV",
+            "rate": -0.00043999999999999996
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 28,
+            "exchange": "lighter",
+            "symbol": "SLV",
+            "rate": 0.000144
+          },
+          "websocket": {
+            "symbol": "SLV",
+            "market_id": 28,
+            "current_funding_rate": "0.0018",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 28,
+            "exchange": "lighter",
+            "symbol": "SLV",
+            "rate": 0.000144
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 29,
+            "exchange": "lighter",
+            "symbol": "AMD",
+            "rate": 0.000136
+          },
+          "websocket": {
+            "symbol": "AMD",
+            "market_id": 29,
+            "current_funding_rate": "0.0017",
+            "funding_rate": "0.0009",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 29,
+            "exchange": "lighter",
+            "symbol": "AMD",
+            "rate": 0.000136
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 30,
+            "exchange": "lighter",
+            "symbol": "INTC",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "INTC",
+            "market_id": 30,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0005",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 30,
+            "exchange": "lighter",
+            "symbol": "INTC",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 31,
+            "exchange": "lighter",
+            "symbol": "MU",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "MU",
+            "market_id": 31,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 31,
+            "exchange": "lighter",
+            "symbol": "MU",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 32,
+            "exchange": "lighter",
+            "symbol": "SNDK",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "SNDK",
+            "market_id": 32,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 32,
+            "exchange": "lighter",
+            "symbol": "SNDK",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 33,
+            "exchange": "lighter",
+            "symbol": "CRWV",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "CRWV",
+            "market_id": 33,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 33,
+            "exchange": "lighter",
+            "symbol": "CRWV",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 34,
+            "exchange": "lighter",
+            "symbol": "PLTR",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "PLTR",
+            "market_id": 34,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 34,
+            "exchange": "lighter",
+            "symbol": "PLTR",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 35,
+            "exchange": "lighter",
+            "symbol": "SOXL",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "SOXL",
+            "market_id": 35,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 35,
+            "exchange": "lighter",
+            "symbol": "SOXL",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 36,
+            "exchange": "lighter",
+            "symbol": "CASHCAT",
+            "rate": 0.002168
+          },
+          "websocket": {
+            "symbol": "CASHCAT",
+            "market_id": 36,
+            "current_funding_rate": "0.0271",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 36,
+            "exchange": "lighter",
+            "symbol": "CASHCAT",
+            "rate": 0.002168
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 37,
+            "exchange": "lighter",
+            "symbol": "SKHY",
+            "rate": -1.6e-05
+          },
+          "websocket": {
+            "symbol": "SKHY",
+            "market_id": 37,
+            "current_funding_rate": "-0.0002",
+            "funding_rate": "-0.0019",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 37,
+            "exchange": "lighter",
+            "symbol": "SKHY",
+            "rate": -1.6e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 38,
+            "exchange": "lighter",
+            "symbol": "ANTHROPIC",
+            "rate": 4e-05
+          },
+          "websocket": {
+            "symbol": "ANTHROPIC",
+            "market_id": 38,
+            "current_funding_rate": "0.0005",
+            "funding_rate": "0.0002",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 38,
+            "exchange": "lighter",
+            "symbol": "ANTHROPIC",
+            "rate": 4e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 39,
+            "exchange": "lighter",
+            "symbol": "ANSEM",
+            "rate": 0.0017519999999999999
+          },
+          "websocket": {
+            "symbol": "ANSEM",
+            "market_id": 39,
+            "current_funding_rate": "0.0219",
+            "funding_rate": "0.0207",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 39,
+            "exchange": "lighter",
+            "symbol": "ANSEM",
+            "rate": 0.0017519999999999999
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 40,
+            "exchange": "lighter",
+            "symbol": "XAU",
+            "rate": 0.000128
+          },
+          "websocket": {
+            "symbol": "XAU",
+            "market_id": 40,
+            "current_funding_rate": "0.0016",
+            "funding_rate": "0.0014",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 40,
+            "exchange": "lighter",
+            "symbol": "XAU",
+            "rate": 0.000128
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 41,
+            "exchange": "lighter",
+            "symbol": "XAG",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "XAG",
+            "market_id": 41,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 41,
+            "exchange": "lighter",
+            "symbol": "XAG",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 42,
+            "exchange": "lighter",
+            "symbol": "OPENAI",
+            "rate": 8e-06
+          },
+          "websocket": {
+            "symbol": "OPENAI",
+            "market_id": 42,
+            "current_funding_rate": "0.0001",
+            "funding_rate": "0.0003",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 42,
+            "exchange": "lighter",
+            "symbol": "OPENAI",
+            "rate": 8e-06
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 43,
+            "exchange": "lighter",
+            "symbol": "SHEIN",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "SHEIN",
+            "market_id": 43,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 43,
+            "exchange": "lighter",
+            "symbol": "SHEIN",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 44,
+            "exchange": "lighter",
+            "symbol": "PONS",
+            "rate": 8.800000000000001e-05
+          },
+          "websocket": {
+            "symbol": "PONS",
+            "market_id": 44,
+            "current_funding_rate": "0.0011",
+            "funding_rate": "0.0000",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 44,
+            "exchange": "lighter",
+            "symbol": "PONS",
+            "rate": 8.800000000000001e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 45,
+            "exchange": "lighter",
+            "symbol": "AI",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "AI",
+            "market_id": 45,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 45,
+            "exchange": "lighter",
+            "symbol": "AI",
+            "rate": 9.599999999999999e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 46,
+            "exchange": "lighter",
+            "symbol": "TSM",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "TSM",
+            "market_id": 46,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 46,
+            "exchange": "lighter",
+            "symbol": "TSM",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 47,
+            "exchange": "lighter",
+            "symbol": "ASTS",
+            "rate": 0.000104
+          },
+          "websocket": {
+            "symbol": "ASTS",
+            "market_id": 47,
+            "current_funding_rate": "0.0013",
+            "funding_rate": "0.0013",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 47,
+            "exchange": "lighter",
+            "symbol": "ASTS",
+            "rate": 0.000104
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 48,
+            "exchange": "lighter",
+            "symbol": "CLSK",
+            "rate": 0.000608
+          },
+          "websocket": {
+            "symbol": "CLSK",
+            "market_id": 48,
+            "current_funding_rate": "0.0076",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 48,
+            "exchange": "lighter",
+            "symbol": "CLSK",
+            "rate": 0.000608
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 49,
+            "exchange": "lighter",
+            "symbol": "IREN",
+            "rate": 0.00017600000000000002
+          },
+          "websocket": {
+            "symbol": "IREN",
+            "market_id": 49,
+            "current_funding_rate": "0.0022",
+            "funding_rate": "0.0013",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 49,
+            "exchange": "lighter",
+            "symbol": "IREN",
+            "rate": 0.00017600000000000002
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 50,
+            "exchange": "lighter",
+            "symbol": "LUNR",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "LUNR",
+            "market_id": 50,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 50,
+            "exchange": "lighter",
+            "symbol": "LUNR",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 51,
+            "exchange": "lighter",
+            "symbol": "QBTS",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "QBTS",
+            "market_id": 51,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 51,
+            "exchange": "lighter",
+            "symbol": "QBTS",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 52,
+            "exchange": "lighter",
+            "symbol": "RGTI",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "RGTI",
+            "market_id": 52,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 52,
+            "exchange": "lighter",
+            "symbol": "RGTI",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 53,
+            "exchange": "lighter",
+            "symbol": "SMCI",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "SMCI",
+            "market_id": 53,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 53,
+            "exchange": "lighter",
+            "symbol": "SMCI",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 54,
+            "exchange": "lighter",
+            "symbol": "SOFI",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "SOFI",
+            "market_id": 54,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 54,
+            "exchange": "lighter",
+            "symbol": "SOFI",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 55,
+            "exchange": "lighter",
+            "symbol": "WULF",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "WULF",
+            "market_id": 55,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 55,
+            "exchange": "lighter",
+            "symbol": "WULF",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 56,
+            "exchange": "lighter",
+            "symbol": "AMC",
+            "rate": 3.2e-05
+          },
+          "websocket": {
+            "symbol": "AMC",
+            "market_id": 56,
+            "current_funding_rate": "0.0004",
+            "funding_rate": "0.0004",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 56,
+            "exchange": "lighter",
+            "symbol": "AMC",
+            "rate": 3.2e-05
+          }
+        },
+        {
+          "rest_before": {
+            "market_id": 57,
+            "exchange": "lighter",
+            "symbol": "USELESS",
+            "rate": 9.599999999999999e-05
+          },
+          "websocket": {
+            "symbol": "USELESS",
+            "market_id": 57,
+            "current_funding_rate": "0.0012",
+            "funding_rate": "0.0012",
+            "funding_timestamp": 1792540800000
+          },
+          "rest_after": {
+            "market_id": 57,
+            "exchange": "lighter",
+            "symbol": "USELESS",
+            "rate": 9.599999999999999e-05
+          }
+        }
+      ]
+    }
+  }
+}

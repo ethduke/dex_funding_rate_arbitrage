@@ -259,7 +259,9 @@ class ExchangeNormalizationTests(unittest.TestCase):
             raw_rates = asyncio.run(exchange.get_funding_rates())
 
         self.assertEqual(raw_rates["AXS"]["exchange"], "lighter")
-        self.assertEqual(raw_rates["AXS"]["rate"], -0.001696)
+        self.assertAlmostEqual(raw_rates["AXS"]["rate"], -0.001696 / 8)
+        self.assertEqual(raw_rates["AXS"]["raw_rate"], -0.001696)
+        self.assertEqual(raw_rates["AXS"]["raw_funding_interval_hours"], 8)
 
 
 if __name__ == "__main__":
