@@ -11,7 +11,9 @@ from weakref import WeakValueDictionary
 from urllib.parse import urlsplit
 from model.exchanges.base import BaseExchange
 from model.exchanges.lighter_ws import LighterWebSocketClient
+from model.exchanges.lighter_reads import LighterReadApiMixin
 from model.exchanges.lighter_status import STATUS_URLS, parse_service_status
+from model.exchanges.lighter_funding import finite_funding_rate, rest_funding_to_hourly
 from model.exchanges.normalized import BalanceSnapshot, FundingRate, OrderResult, Position, to_float, to_optional_float
 from typing import Dict, List, Optional, Any, Callable, Tuple
 from utils.config import CONFIG
@@ -26,7 +28,7 @@ logger = setup_logger(__name__)
 
 MARKET_METADATA_TTL_SECONDS = 15 * 60
 
-class LighterExchange(BaseExchange):
+class LighterExchange(LighterReadApiMixin, BaseExchange):
     exchange_name = "Lighter"
     config_prefix = "LIGHTER"
     default_api_url = MAINNET.api_url
@@ -108,7 +110,8 @@ class LighterExchange(BaseExchange):
             # Update WebSocket client with market mapping
             if hasattr(self, '_market_mapping_cache'):
                 self.ws_client.set_market_mapping(self._market_mapping_cache)
-            
+
+            await self.ws_client.set_market_stats_markets(self.ws_client.order_book_ids)
             await self.ws_client.connect()
             
             if self.ws_client.is_connected():
@@ -285,7 +288,7 @@ class LighterExchange(BaseExchange):
             raise
 
     async def get_funding_rates(self) -> Dict:
-        """Get current funding rates from Lighter exchange via FundingApi."""
+        """Return fractional hourly rates from the REST eight-hour aggregator."""
         try:
             # Create funding API instance
             funding_api = lighter.FundingApi(self.api_client)
@@ -304,7 +307,10 @@ class LighterExchange(BaseExchange):
                         market_id = rate.market_id
                         symbol = await self._get_symbol_by_market_id(market_id)
                         result[symbol] = {
-                            "rate": float(rate.rate) if rate.rate else 0,
+                            "rate": rest_funding_to_hourly(rate.rate),
+                            "funding_interval_hours": 1.0,
+                            "raw_rate": rate.rate,
+                            "raw_funding_interval_hours": 8.0,
                             "exchange": rate.exchange,
                             "symbol": rate.symbol,
                             "market_id": market_id
@@ -320,7 +326,7 @@ class LighterExchange(BaseExchange):
             return {"error": f"Failed to get funding rates: {str(e)}"}
 
     def process_funding_rates(self, raw_data: Dict) -> Dict[str, Dict]:
-        """Process raw funding rates into a normalized format."""
+        """Package hourly fractions returned by get_funding_rates; do not /8 again."""
         result = {}
         
         try:
@@ -336,7 +342,7 @@ class LighterExchange(BaseExchange):
                     result[symbol] = FundingRate(
                         asset=symbol,
                         exchange=self.exchange_name,
-                        rate=to_float(data.get("rate")),
+                        rate=finite_funding_rate(data.get("rate")),
                         next_funding_time=data.get("next_funding_time", 0),
                         mark_price=to_float(data.get("mark_price")),
                         index_price=to_float(data.get("index_price")),
@@ -882,6 +888,7 @@ class LighterExchange(BaseExchange):
                 return False
 
             # Ask WS client to resubscribe
+            await self.ws_client.set_market_stats_markets(market_ids)
             if hasattr(self.ws_client, "resubscribe_order_books"):
                 ok = await self.ws_client.resubscribe_order_books(market_ids)
                 logger.info(f"WS resubscribe to markets {market_ids}: {ok}")

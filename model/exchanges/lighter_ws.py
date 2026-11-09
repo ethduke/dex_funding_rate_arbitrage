@@ -1,4 +1,6 @@
 import asyncio
+import inspect
+import json
 import math
 import time
 from typing import Callable, List, Dict, Optional
@@ -8,6 +10,7 @@ from lighter import WsClient
 from lighter.endpoint_profiles import MAINNET
 from websockets.client import connect as _ws_connect_async
 from utils.logger import setup_logger
+from model.exchanges.lighter_stats import MarketStatsState, market_selection
 
 logger = setup_logger(__name__)
 
@@ -15,18 +18,35 @@ logger = setup_logger(__name__)
 class _PatchedWsClient(WsClient):
     """SDK protocol handling with snapshot readiness and owned socket cleanup."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, stats_selections=None, stats_partial=True, stats_multi_market=True, on_stats=None, **kwargs):
         super().__init__(**kwargs)
+        self.stats = MarketStatsState(stats_selections or {}, partial=stats_partial, multi_market=stats_multi_market)
+        self.on_stats = on_stats
+        self.protocol_connected = False
         self.ready = asyncio.Event()
         self.shutdown = asyncio.Event()
         self.on_shutdown = lambda close_in_ms: self.shutdown.set()
 
     async def on_message_async(self, ws, message):
-        await super().on_message_async(ws, message)
+        decoded = json.loads(message)
+        changes = self.stats.consume(decoded)
+        if changes is None:
+            await super().on_message_async(ws, message)
+        elif self.on_stats:
+            for channel, state in changes:
+                await self.on_stats(self, channel, state)
+        if decoded.get("type") == "connected":
+            self.protocol_connected = True
+            await self.stats.subscribe(ws)
+        self.refresh_ready()
+
+    def refresh_ready(self):
         books = {str(mid) for mid in self.subscriptions["order_books"]}
         accounts = {str(aid) for aid in self.subscriptions["accounts"]}
-        if books.issubset(self.order_book_states) and accounts.issubset(self.account_states):
+        if books.issubset(self.order_book_states) and accounts.issubset(self.account_states) and self.stats.ready:
             self.ready.set()
+        else:
+            self.ready.clear()
 
     async def run_async(self):
         try:
@@ -54,7 +74,11 @@ class LighterWebSocketClient:
                  market_mapping: Dict[int, str] = None,
                  order_book_ids: List[int] = None,
                  api_url: str = MAINNET.api_url,
-                 exchange_name: str = "Lighter"):
+                 exchange_name: str = "Lighter",
+                 market_stats_ids=None, spot_market_stats_ids=None,
+                 stats_partial: bool = True, on_market_stats_update: Callable = None,
+                 on_spot_market_stats_update: Callable = None, read_only: bool = False,
+                 multi_market_stats: Optional[bool] = None):
         self.exchange_name = exchange_name
         endpoint = urlsplit(api_url)
         if endpoint.scheme not in ("http", "https") or not endpoint.netloc:
@@ -66,6 +90,10 @@ class LighterWebSocketClient:
             endpoint.path.rstrip("/") + "/stream", "", "",
         ))
         self.account_ids = account_ids if account_ids is not None else [1]
+        if type(read_only) is not bool or (read_only and self.account_ids):
+            raise ValueError("Read-only WebSockets require account_ids=[]")
+        if read_only:
+            self.ws_url += "?readonly=true"
         self.order_book_ids = order_book_ids if order_book_ids is not None else []
         self._market_stats = {}
         self._market_mapping = market_mapping or {}
@@ -77,6 +105,22 @@ class LighterWebSocketClient:
         self._ready = asyncio.Event()
         self._sessions = {}
         self._account_transaction_times = {}
+        self._stats_selections = {
+            "market_stats": market_selection(market_stats_ids if market_stats_ids is not None else []),
+            "spot_market_stats": market_selection(spot_market_stats_ids if spot_market_stats_ids is not None else []),
+        }
+        if type(stats_partial) is not bool:
+            raise ValueError("stats_partial must be a boolean")
+        self.stats_partial = stats_partial
+        if multi_market_stats is not None and type(multi_market_stats) is not bool:
+            raise ValueError("multi_market_stats must be a boolean or None")
+        self.multi_market_stats = (
+            endpoint.hostname in {"mainnet.zklighter.elliot.ai", "testnet.zklighter.elliot.ai"}
+            if multi_market_stats is None else multi_market_stats
+        )
+        self.on_market_stats_update = on_market_stats_update
+        self.on_spot_market_stats_update = on_spot_market_stats_update
+        self._stats_lock = asyncio.Lock()
 
     async def connect(self):
         """Wait for fresh subscription snapshots, not merely a scheduled task."""
@@ -105,6 +149,9 @@ class LighterWebSocketClient:
             on_order_book_update=lambda mid, data: self._handle_order_book_update(mid, data)
             if self.ws_client is client else None,
             on_unhandled_message=self._handle_unhandled_message,
+            stats_selections=self._stats_selections, stats_partial=self.stats_partial,
+            stats_multi_market=self.multi_market_stats,
+            on_stats=self._publish_stats,
         )
         self._sessions[client] = asyncio.create_task(client.run_async())
         return client
@@ -135,7 +182,7 @@ class LighterWebSocketClient:
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
 
-    def _activate(self, client):
+    async def _activate(self, client):
         self.ws_client = client
         self._market_stats.clear()
         self._connected = True
@@ -143,6 +190,9 @@ class LighterWebSocketClient:
             self._handle_order_book_update(mid, book)
         for aid, account in client.account_states.items():
             self._handle_account_update(aid, account)
+        for channel, states in client.stats.states.items():
+            for state in states.values():
+                await self._publish_stats(client, channel, dict(state))
         self._ready.set()
 
     async def _run_websocket(self):
@@ -156,7 +206,7 @@ class LighterWebSocketClient:
                     if self._sessions[candidate].done() or candidate.ws.closed or candidate.shutdown.is_set():
                         raise ConnectionError("Lighter replacement closed before activation")
                     old = self.ws_client
-                    self._activate(candidate)
+                    await self._activate(candidate)
                     if old is not None:
                         await self._stop_session(old)
                     logger.info("%s WebSocket subscriptions ready", self.exchange_name)
@@ -217,6 +267,72 @@ class LighterWebSocketClient:
 
     def set_market_mapping(self, market_mapping: Dict[int, str]):
         self._market_mapping = market_mapping
+
+    async def set_market_stats_markets(self, market_ids, *, spot=False):
+        """Replace the selected set (or 'all'), adding/removing IDs without reconnecting."""
+        channel = "spot_market_stats" if spot else "market_stats"
+        selection = market_selection(market_ids)
+        async with self._stats_lock:
+            await self._set_stats_markets(channel, selection)
+
+    async def _set_stats_markets(self, channel, selection):
+        self._stats_selections[channel] = selection
+        updates = []
+        for client in list(self._sessions):
+            messages = client.stats.change(channel, selection)
+            client.refresh_ready()
+            updates.append((client, messages))
+        for client, messages in updates:
+            if client.protocol_connected and client.ws is not None and not client.ws.closed:
+                try:
+                    for message in messages:
+                        await client.ws.send(json.dumps(message))
+                except Exception:
+                    # Neither the active nor warming socket may retain a half-applied set.
+                    await asyncio.gather(*(
+                        session.ws.close() for session in list(self._sessions)
+                        if session.ws is not None
+                    ), return_exceptions=True)
+                    raise ConnectionError("Lighter stats subscription update failed") from None
+
+    async def subscribe_market_stats(self, market_ids, *, spot=False):
+        channel = "spot_market_stats" if spot else "market_stats"
+        ids = market_selection(market_ids)
+        async with self._stats_lock:
+            current = self._stats_selections[channel]
+            selection = "all" if ids == "all" or current == "all" else sorted(set(current) | set(ids))
+            await self._set_stats_markets(channel, market_selection(selection))
+
+    async def unsubscribe_market_stats(self, market_ids=None, *, spot=False):
+        channel = "spot_market_stats" if spot else "market_stats"
+        if market_ids is None:
+            await self.set_market_stats_markets([], spot=spot)
+            return
+        ids = market_selection(market_ids)
+        async with self._stats_lock:
+            current = self._stats_selections[channel]
+            if current == "all" or ids == "all":
+                raise ValueError("Unsubscribe the entire /all stream before selecting individual markets")
+            await self._set_stats_markets(channel, sorted(set(current) - set(ids)))
+
+    def get_market_snapshot(self, market_id, *, spot=False):
+        """Stats are separate from the order-book prices used for execution."""
+        if not self.is_connected():
+            return {}
+        channel = "spot_market_stats" if spot else "market_stats"
+        return self.ws_client.stats.get(channel, market_id, self.MAX_PRICE_AGE)
+
+    async def _publish_stats(self, client, channel, state):
+        if client is not self.ws_client:
+            return
+        callback = self.on_spot_market_stats_update if channel == "spot_market_stats" else self.on_market_stats_update
+        if callback:
+            try:
+                result = callback(state)
+                if inspect.isawaitable(result):
+                    await result
+            except Exception as exc:
+                logger.warning("%s stats callback failed (%s)", self.exchange_name, type(exc).__name__)
 
     def get_market_stats(self, market_id: int) -> Dict:
         stats = self._market_stats.get(str(market_id), {})
