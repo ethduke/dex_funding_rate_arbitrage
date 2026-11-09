@@ -11,6 +11,7 @@ from weakref import WeakValueDictionary
 from urllib.parse import urlsplit
 from model.exchanges.base import BaseExchange
 from model.exchanges.lighter_ws import LighterWebSocketClient
+from model.exchanges.lighter_reads import LighterReadApiMixin
 from model.exchanges.lighter_status import STATUS_URLS, parse_service_status
 from model.exchanges.lighter_funding import finite_funding_rate, rest_funding_to_hourly
 from model.exchanges.normalized import BalanceSnapshot, FundingRate, OrderResult, Position, to_float, to_optional_float
@@ -27,7 +28,7 @@ logger = setup_logger(__name__)
 
 MARKET_METADATA_TTL_SECONDS = 15 * 60
 
-class LighterExchange(BaseExchange):
+class LighterExchange(LighterReadApiMixin, BaseExchange):
     exchange_name = "Lighter"
     config_prefix = "LIGHTER"
     default_api_url = MAINNET.api_url
@@ -109,7 +110,8 @@ class LighterExchange(BaseExchange):
             # Update WebSocket client with market mapping
             if hasattr(self, '_market_mapping_cache'):
                 self.ws_client.set_market_mapping(self._market_mapping_cache)
-            
+
+            await self.ws_client.set_market_stats_markets(self.ws_client.order_book_ids)
             await self.ws_client.connect()
             
             if self.ws_client.is_connected():
@@ -886,6 +888,7 @@ class LighterExchange(BaseExchange):
                 return False
 
             # Ask WS client to resubscribe
+            await self.ws_client.set_market_stats_markets(market_ids)
             if hasattr(self.ws_client, "resubscribe_order_books"):
                 ok = await self.ws_client.resubscribe_order_books(market_ids)
                 logger.info(f"WS resubscribe to markets {market_ids}: {ok}")
