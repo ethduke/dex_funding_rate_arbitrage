@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 from model.exchanges.base import BaseExchange
 from model.exchanges.lighter_ws import LighterWebSocketClient
 from model.exchanges.lighter_reads import LighterReadApiMixin
+from model.exchanges.lighter_key_restrictions import read_restrictions, require_core_mainnet
 from model.exchanges.lighter_status import STATUS_URLS, parse_service_status
 from model.exchanges.lighter_funding import finite_funding_rate, rest_funding_to_hourly
 from model.exchanges.normalized import BalanceSnapshot, FundingRate, OrderResult, Position, to_float, to_optional_float
@@ -157,6 +158,14 @@ class LighterExchange(LighterReadApiMixin, BaseExchange):
             
         except (ValueError, TypeError):
             return False
+
+    async def get_api_key_restrictions(self) -> Dict:
+        """Read the configured Core mainnet key's complete policy."""
+        require_core_mainnet(self.api_client.configuration.host)
+        token = os.environ.get("LIGHTER_READ_ONLY_TOKEN", "").strip() or await self._get_auth_token()
+        return await read_restrictions(
+            self.account_api, self._account_index(), self._config("API_KEY_INDEX"), token,
+        )
 
     async def _configured_api_key_is_maker_only(self) -> bool:
         """Return whether the configured key cannot submit IOC market orders."""
@@ -514,6 +523,10 @@ class LighterExchange(LighterReadApiMixin, BaseExchange):
             tx = (created, api_resp, err)
             remaining_send_tx = self._remaining_send_tx(api_resp)
 
+            code = self._obj_get(api_resp, "code")
+            if not err and code is not None and code != 200:
+                detail = self._obj_get(api_resp, "message") or "Order rejected"
+                err = f"Lighter {code}: {detail}"
             if err:
                 logger.warning(f"{self.exchange_name} market order rejected: symbol={symbol}, side={side}, error={err}")
                 result = OrderResult(

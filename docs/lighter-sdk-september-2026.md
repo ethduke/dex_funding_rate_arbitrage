@@ -1,7 +1,7 @@
 # Lighter SDK Update: September 11, 2026
 
-Historical notes: the Git pin below has been superseded by the published SDK
-1.1.6. Use the [October update instructions](lighter-sdk-october-2026.md) for installation.
+The Git revision below records the September migration. For current installations,
+use the [November SDK installation guide](lighter-sdk-november-2026.md#sdk-installation).
 
 ## Installation
 
@@ -18,8 +18,6 @@ For an existing virtual environment, force replacement of the older wheel:
 ./venv/bin/python -m pip check
 ./venv/bin/python -m unittest discover -v
 ```
-
-New environments can use `pip install -r requirements.txt` as usual.
 
 ## Adapter Changes
 

@@ -1,8 +1,10 @@
 # Lighter SDK Updates: October 2026
 
-## Current SDK, Oracle and Maintenance Support
+For current installations, use the [November SDK installation guide](lighter-sdk-november-2026.md#sdk-installation).
 
-The current pin is upstream revision
+## October SDK, Oracle and Maintenance Support
+
+The October pin was upstream revision
 `24fb46a7f7c5417b7abb7b2220635d55772f0ff6`, which updates the ctypes declarations
 and bundled native signers to accept 64-bit market indexes. PyPI still reports
 1.1.6, so installing that version alone does not include this patch. Install
@@ -81,7 +83,7 @@ The adapter does not download or regenerate code from these schemas at runtime.
 
 ## Install
 
-The current Git pin supersedes the earlier PyPI `lighter-sdk==1.1.6` pin and
+The October source revision superseded the earlier PyPI `lighter-sdk==1.1.6` pin and
 includes the SDK's `on_shutdown` callback. The callback alone
 does not reconnect; our wrapper owns connection replacement and cleanup.
 

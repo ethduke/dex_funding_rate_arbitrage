@@ -2,11 +2,8 @@
 
 ## SDK Installation
 
-The current dependency is upstream revision
-`38a34672e7cb43c67d807ece25f125fda2dfdecf` (package version 1.1.8).
-It removes the obsolete urllib3 upper bound, so the earlier local compatibility
-wheel is no longer required. This supersedes the wheel instructions in the
-October/Taskfuel notes. Keep the patched HTTP pins in `requirements-http.txt`.
+The project pins the official PyPI release `lighter-sdk==1.2.0`, which supports
+the HTTP dependencies pinned in `requirements-http.txt`.
 
 ```bash
 ./venv/bin/python -m pip install -r requirements.txt
@@ -19,6 +16,55 @@ WebSocket lifecycle. Core and Robinhood Chain share these extensions, with
 separate hosts, account IDs, read-only tokens, and connection state.
 Endpoint rollout can differ by instance; an unavailable private read raises an
 error and does not silently return an empty history or query the other instance.
+
+## API key restrictions
+
+Run these commands from the project root. Both target the Core mainnet
+`LIGHTER_ACCOUNT_INDEX` and `LIGHTER_API_KEY_INDEX` in `config.yaml`.
+The bot starts and trades without an L1 wallet key.
+
+```bash
+./venv/bin/python -m scripts.lighter_key_restrictions show
+```
+
+`show` reads `GET /api/v1/apikeys` with the account's `LIGHTER_READ_ONLY_TOKEN`
+or a short-lived token signed with `LIGHTER_PRIVATE_KEY`. The adapter exposes the
+same read through `await exchange.get_api_key_restrictions()`. A missing policy
+raises an error. An unrestricted key returns three empty lists and expiry zero.
+
+To change the policy, save the complete desired state as `policy.json`.
+The example permits market 0 and one binary options series from a single IP.
+Replace the example values with your current market IDs, series and public egress IP.
+
+```json
+{
+  "market_ids": [0],
+  "series": [{"creator_account_index": 3, "tag": "btc-updown-5m"}],
+  "allowed_ips": ["203.0.113.7"],
+  "valid_until": 0
+}
+```
+
+```bash
+./venv/bin/python -m scripts.lighter_key_restrictions replace policy.json
+```
+
+`replace` uses the configured API private key to initialize the SDK and prompts
+for the account owner's L1 private key to sign the replacement. The SDK fetches
+the current public key and submits the signed form to `POST /api/v1/setApiKeyRestrictions`.
+Run `show` to verify the result. Each call replaces all four fields.
+
+- Each list accepts up to 16 entries. Market IDs and series form a single allowlist.
+  Two empty market lists permit all markets. An empty IP list permits any IP.
+  Use individual IPv4 or IPv6 addresses. CIDR ranges are unsupported.
+- Set `valid_until` to Unix seconds in the next 180 days, or zero for no expiry.
+  Open orders survive expiry. Cancel them before expiry or use another authorized key.
+- A market-restricted key cannot withdraw or transfer funds. Immediate cancel-all
+  must target one allowed market. Scheduled cancel-all is unavailable.
+- Rotation resets the policy at that index. Reapply the desired policy to the
+  newly registered key and verify it before resuming trading.
+
+[Lighter API key restrictions](https://docs.lighter.xyz/developers/integration-guides/api-keys#api-key-restrictions)
 
 ## Market Stats
 
@@ -116,7 +162,7 @@ No orders or transfers were submitted.
 
 ## Sources
 
-- [SDK revision](https://github.com/elliottech/lighter-python/commit/38a34672e7cb43c67d807ece25f125fda2dfdecf)
+- [SDK 1.2.0 release](https://pypi.org/project/lighter-sdk/1.2.0/)
 - [WebSocket reference](https://docs.lighter.xyz/api/websocket)
 - [Account order fills](https://docs.lighter.xyz/api/orders/accountorderfills)
 - [User referrals](https://docs.lighter.xyz/api/referral/userreferrals)
